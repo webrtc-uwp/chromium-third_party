@@ -38,6 +38,58 @@
 #define LDRD_CONS "Uq"
 #endif
 
+#ifdef USE_MSVS_ARM_INTRINCICS
+//conversion from kiss_twiddle_cpx to int
+#define KISS_TWIDDLE_CPX_TO_INT(val) *((int*)(&(val)))
+#define C_MUL_armv5e(m,a,b) \
+    do{ \
+        int mr1__ = 0; \
+        int mr2__ = 0; \
+        int mi__ = 0; \
+        long long aval__ = 0;\
+        int bval__ = 0; \
+        mi__ = _arm_smulwb((a).i, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mr1__ = _arm_smulwb((a).r, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mr2__ = _arm_smulwt((a).i, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mi__ = _arm_smlawt((a).r, KISS_TWIDDLE_CPX_TO_INT(b), mi__); \
+        (m).r = SHL32(SUB32(mr1__, mr2__), 1); \
+        (m).i = SHL32(mi__, 1); \
+                    } \
+    while(0)
+
+#define C_MUL4_armv5e(m,a,b) \
+    do{ \
+        int mr1__ = 0; \
+        int mr2__ = 0; \
+        int mi__ = 0; \
+        long long aval__ = 0; \
+        int bval__ = 0; \
+        mi__ = _arm_smulwb((a).i, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mr1__ = _arm_smulwb((a).r, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mr2__ = _arm_smulwt((a).i, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mi__ = _arm_smlawt((a).r, KISS_TWIDDLE_CPX_TO_INT(b), mi__); \
+        (m).r = SHL32(SUB32(mr1__, mr2__), 1); \
+        (m).i = SHL32(mi__, 1); \
+            } \
+    while(0)
+
+#define C_MULC_armv5e(m,a,b) \
+    do{ \
+        int mr__ = 0; \
+        int mi1__ = 0; \
+        int mi2__ = 0; \
+        long long aval__ = 0; \
+        int bval__ = 0; \
+        mr__ = _arm_smulwb((a).r, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mi1__ = _arm_smulwb((a).i, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mi2__ = _arm_smulwt((a).r, KISS_TWIDDLE_CPX_TO_INT(b)); \
+        mr__ = _arm_smlawt((a).i, KISS_TWIDDLE_CPX_TO_INT(b), mr__); \
+        (m).r = SHL32(mr__, 1); \
+        (m).i = SHL32(SUB32(mi1__, mi2__), 1); \
+                } \
+    while(0)
+
+#else
 #undef C_MUL
 #define C_MUL(m,a,b) \
     do{ \
@@ -112,6 +164,16 @@
         (m).i = SHL32(SUB32(mi1__, mi2__), 1); \
     } \
     while(0)
+#endif  // USE_MSVS_ARM_INTRINCICS
+
+#ifdef USE_MSVS_ARM_INTRINCICS
+#undef C_MUL 
+#define C_MUL(m, a, b) C_MUL_armv5e((m), (a), (b))
+#undef C_MUL4
+#define C_MUL4(m, a, b) C_MUL4_armv5e((m), (a), (b))
+#undef C_MULC
+#define C_MULC(m, a, b) C_MULC_armv5e((m), (a), (b))
+#endif  // USE_MSVS_ARM_INTRINCICS 
 
 #endif /* FIXED_POINT */
 

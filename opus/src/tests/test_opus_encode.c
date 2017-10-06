@@ -632,7 +632,7 @@ void print_usage(char* _argv[])
    fprintf(stderr,"Usage: %s [<seed>] [-fuzz <num_encoders> <num_settings_per_encoder>]\n",_argv[0]);
 }
 
-int main(int _argc, char **_argv)
+int main(int _argc, char *_argv[])
 {
    int args=1;
    char * strtol_str=NULL;

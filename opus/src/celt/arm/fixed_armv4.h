@@ -27,8 +27,14 @@
 #ifndef FIXED_ARMv4_H
 #define FIXED_ARMv4_H
 
+#ifdef USE_MSVS_ARM_INTRINCICS
+#include <arm_neon.h>
 /** 16x32 multiplication, followed by a 16-bit shift right. Results fits in 32 bits */
-#undef MULT16_32_Q16
+#define MULT16_32_Q16_armv4(a,b) (((opus_val32)_arm_smull((a), (b)))>>16)
+/** 16x32 multiplication, followed by a 15-bit shift right. Results fits in 32 bits */
+#define MULT16_32_Q15_armv4(a, b) (((opus_val32)_arm_smull((a), (b))) >> 15)
+#else /* USE_MSVS_ARM_INTRINCICS */
+/** 16x32 multiplication, followed by a 16-bit shift right. Results fits in 32 bits */
 static OPUS_INLINE opus_val32 MULT16_32_Q16_armv4(opus_val16 a, opus_val32 b)
 {
   unsigned rd_lo;
@@ -41,11 +47,8 @@ static OPUS_INLINE opus_val32 MULT16_32_Q16_armv4(opus_val16 a, opus_val32 b)
   );
   return rd_hi;
 }
-#define MULT16_32_Q16(a, b) (MULT16_32_Q16_armv4(a, b))
-
 
 /** 16x32 multiplication, followed by a 15-bit shift right. Results fits in 32 bits */
-#undef MULT16_32_Q15
 static OPUS_INLINE opus_val32 MULT16_32_Q15_armv4(opus_val16 a, opus_val32 b)
 {
   unsigned rd_lo;
@@ -59,6 +62,11 @@ static OPUS_INLINE opus_val32 MULT16_32_Q15_armv4(opus_val16 a, opus_val32 b)
   /*We intentionally don't OR in the high bit of rd_lo for speed.*/
   return SHL32(rd_hi,1);
 }
+#endif /* USE_MSVS_ARM_INTRINCICS */
+
+#undef MULT16_32_Q16
+#define MULT16_32_Q16(a, b) (MULT16_32_Q16_armv4(a, b))
+#undef MULT16_32_Q15
 #define MULT16_32_Q15(a, b) (MULT16_32_Q15_armv4(a, b))
 
 

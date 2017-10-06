@@ -230,6 +230,9 @@ if (current_toolchain == host_toolchain) {
       # Default manifest on Windows (a no-op elsewhere).
       "//build/win:default_exe_manifest",
     ]
+    if (is_winuwp) {
+      deps += [ "//third_party/winuwp_compat:force_include_win" ]
+    }
   }
 
   config("yasm_warnings") {
@@ -379,10 +382,14 @@ if (current_toolchain == host_toolchain) {
       ":generate_version",
       ":yasm_utils",
       "//build/config:exe_and_shlib_deps",
+      "//third_party/winuwp_compat:winuwp_compat",
 
       # Default manifest on Windows (a no-op elsewhere).
       "//build/win:default_exe_manifest",
     ]
+    if (is_winuwp) {
+      deps += [ "//third_party/winuwp_compat:force_include_std" ]
+    }
   }
 
   compiled_action_foreach("compile_gperf") {
