@@ -9,7 +9,7 @@ config("jsoncpp_config") {
   ]
 }
 
-source_set("jsoncpp") {
+static_library("jsoncpp") {
   sources = [
     "overrides/include/json/value.h",
     "overrides/src/lib_json/json_reader.cpp",
