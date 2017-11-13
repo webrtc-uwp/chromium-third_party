@@ -1,4 +1,0 @@
-*
-
-per-file ImageFirstTests=set noparent
-per-file ImageFirstTests=file://third_party/WebKit/Source/core/layout/OWNERS

@@ -1,4 +1,0 @@
-This is a testharness.js-based test.
-FAIL Font family name parsing tests Uncaught ReferenceError: SpecialPowers is not defined
-Harness: the test ran to completion.
-

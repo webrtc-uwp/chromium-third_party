@@ -1,3 +1,0 @@
-CONSOLE ERROR: Blocked alert('onbeforeunload called, and iframe hasn't been added yet.') during beforeunload.
-ALERT: Adding iframe
-
