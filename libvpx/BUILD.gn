@@ -40,6 +40,8 @@ if (is_nacl) {
     os_category = current_os
   } else if (is_posix) {  # Should cover linux, mac, and the ios simulator.
     os_category = "linux"
+  } else if (is_winuwp) {
+    os_category = "win"
   } else {  # This should only match windows.
     os_category = current_os
   }
@@ -124,7 +126,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
   # link time. On Mac, this results in undefined references to the intrinsic
   # symbols.
 
-  source_set("libvpx_intrinsics_mmx") {
+  static_library("libvpx_intrinsics_mmx") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -139,7 +141,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
     }
   }
 
-  source_set("libvpx_intrinsics_sse2") {
+  static_library("libvpx_intrinsics_sse2") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -154,7 +156,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
     }
   }
 
-  source_set("libvpx_intrinsics_ssse3") {
+  static_library("libvpx_intrinsics_ssse3") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -169,7 +171,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
     }
   }
 
-  source_set("libvpx_intrinsics_sse4_1") {
+  static_library("libvpx_intrinsics_sse4_1") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -184,7 +186,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
     }
   }
 
-  source_set("libvpx_intrinsics_avx") {
+  static_library("libvpx_intrinsics_avx") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
@@ -201,7 +203,7 @@ if (current_cpu == "x86" || (current_cpu == "x64" && !is_msan)) {
     }
   }
 
-  source_set("libvpx_intrinsics_avx2") {
+  static_library("libvpx_intrinsics_avx2") {
     configs += [ ":libvpx_config" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
