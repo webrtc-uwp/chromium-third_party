@@ -446,8 +446,6 @@ executable("opus_demo") {
 }
 
 test("test_opus_api") {
-  is_c_main = true
-
   sources = [
     "src/tests/test_opus_api.c",
   ]
@@ -464,7 +462,6 @@ test("test_opus_api") {
 }
 
 test("test_opus_encode") {
-  is_c_main = true
   sources = [
     "src/tests/opus_encode_regressions.c",
     "src/tests/test_opus_encode.c",
@@ -498,7 +495,6 @@ config("test_opus_decode_config") {
 }
 
 test("test_opus_decode") {
-  is_c_main = true
   sources = [
     "src/tests/test_opus_decode.c",
   ]
@@ -519,8 +515,6 @@ test("test_opus_decode") {
 }
 
 test("test_opus_padding") {
-  is_c_main = true
-  is_c_main_no_args = true
   sources = [
     "src/tests/test_opus_padding.c",
   ]
