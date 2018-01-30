@@ -1,0 +1,7 @@
+/boringssl/src/
+/googletest/src/
+/jsoncpp/source/
+/libvpx/source/libvpx/
+/yasm/source/patched-yasm/
+/yasm/binaries/
+/usrsctp/usrsctplib/
