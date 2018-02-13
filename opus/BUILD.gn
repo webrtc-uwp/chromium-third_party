@@ -476,7 +476,7 @@ test("test_opus_encode") {
   deps = [
     ":opus",
   ]
-  if (is_winuwp) {
+  if (is_target_winuwp) {
     deps += [ "//third_party/winuwp_compat:force_include_std" ]
   }
 }
@@ -509,7 +509,7 @@ test("test_opus_decode") {
   deps = [
     ":opus",
   ]
-  if (is_winuwp) {
+  if (is_target_winuwp) {
     deps += [ "//third_party/winuwp_compat:force_include_std" ]
   }
 }
