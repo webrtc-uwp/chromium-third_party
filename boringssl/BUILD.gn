@@ -47,7 +47,8 @@ all_sources = crypto_sources + ssl_sources
 
 # Windows' assembly is built with Yasm. The other platforms use the platform
 # assembler.
-if (is_win && !is_msan && (current_cpu != "arm")) {
+if (is_win && !is_msan && (current_cpu != "arm") &&
+   (!(is_target_winuwp && (current_cpu == "x64")))) {
   import("//third_party/yasm/yasm_assemble.gni")
   yasm_assemble("boringssl_asm") {
     if (current_cpu == "x64") {
@@ -133,7 +134,7 @@ component("boringssl") {
   configs -= [ "//build/config/compiler:chromium_code" ]
   configs += [ "//build/config/compiler:no_chromium_code" ]
 
-  if (is_winuwp) {
+  if (is_target_winuwp) {
     deps += [ "//third_party/winuwp_compat:force_include_all" ]
   }
 
@@ -225,7 +226,7 @@ if (build_with_chromium) {
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
 
-    if (is_winuwp) {
+    if (is_target_winuwp) {
       deps += [ "//third_party/winuwp_compat:force_include_std" ]
       sources -= ["src/crypto/rand/windows.c"]
       sources += ["//third_party/winuwp_compat/boringssl/src/crypto/rand/windows.c"]
@@ -291,7 +292,7 @@ if (build_with_chromium) {
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
 
-    if (is_winuwp) {
+    if (is_target_winuwp) {
       deps += [ "//third_party/winuwp_compat:force_include_std" ]
       sources -= ["src/crypto/rand/windows.c"]
       sources += ["//third_party/winuwp_compat/boringssl/src/crypto/rand/windows.c"]
