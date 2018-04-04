@@ -41,7 +41,20 @@ int vp9_denoiser_filter_c(const uint8_t *sig, int sig_stride, const uint8_t *mc_
 int vp9_diamond_search_sad_c(const struct macroblock *x, const struct search_site_config *cfg,  struct mv *ref_mv, struct mv *best_mv, int search_param, int sad_per_bit, int *num00, const struct vp9_variance_vtable *fn_ptr, const struct mv *center_mv);
 #define vp9_diamond_search_sad vp9_diamond_search_sad_c
 
-void vp9_fdct8x8_quant_c(const int16_t *input, int stride, tran_low_t *coeff_ptr, intptr_t n_coeffs, int skip_block, const int16_t *zbin_ptr, const int16_t *round_ptr, const int16_t *quant_ptr, const int16_t *quant_shift_ptr, tran_low_t *qcoeff_ptr, tran_low_t *dqcoeff_ptr, const int16_t *dequant_ptr, uint16_t *eob_ptr, const int16_t *scan, const int16_t *iscan);
+
+void vp9_fdct8x8_quant_c(const int16_t* input,
+                         int stride,
+                         tran_low_t* coeff_ptr,
+                         intptr_t n_coeffs,
+                         int skip_block,
+                         const int16_t* round_ptr,
+                         const int16_t* quant_ptr,
+                         tran_low_t* qcoeff_ptr,
+                         tran_low_t* dqcoeff_ptr,
+                         const int16_t* dequant_ptr,
+                         uint16_t* eob_ptr,
+                         const int16_t* scan,
+                         const int16_t* iscan);
 #define vp9_fdct8x8_quant vp9_fdct8x8_quant_c
 
 void vp9_fht16x16_c(const int16_t *input, tran_low_t *output, int stride, int tx_type);

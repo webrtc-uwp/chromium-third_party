@@ -280,6 +280,9 @@ void vpx_idct16x16_1_add_c(const tran_low_t *input, uint8_t *dest, int dest_stri
 void vpx_idct16x16_256_add_c(const tran_low_t *input, uint8_t *dest, int dest_stride);
 #define vpx_idct16x16_256_add vpx_idct16x16_256_add_c
 
+void vpx_idct16x16_38_add_c(const tran_low_t* input, uint8_t* dest, int dest_stride);
+#define vpx_idct16x16_38_add vpx_idct16x16_38_add_c
+
 void vpx_idct32x32_1024_add_c(const tran_low_t *input, uint8_t *dest, int dest_stride);
 #define vpx_idct32x32_1024_add vpx_idct32x32_1024_add_c
 
