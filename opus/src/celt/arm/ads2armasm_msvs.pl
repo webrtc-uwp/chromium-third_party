@@ -12,9 +12,13 @@
 use FindBin;
 use lib $FindBin::Bin;
 use thumb;
+use File::Copy;
+use FindBin qw( $RealBin );
 
 print "; This file was created from a .asm file\n";
 print ";  using the ads2armasm_ms.pl script.\n";
+
+copy("$RealBin/armopts.s.msvs","$RealBin/armopts.s") or die "Copy failed: $!";
 
 while (<STDIN>)
 {
