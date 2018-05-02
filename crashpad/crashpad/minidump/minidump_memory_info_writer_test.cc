@@ -14,10 +14,10 @@
 
 #include "minidump/minidump_memory_info_writer.h"
 
+#include <memory>
 #include <string>
 #include <utility>
 
-#include "base/memory/ptr_util.h"
 #include "gtest/gtest.h"
 #include "minidump/minidump_file_writer.h"
 #include "minidump/test/minidump_file_writer_test_util.h"
@@ -59,7 +59,7 @@ void GetMemoryInfoListStream(
 TEST(MinidumpMemoryInfoWriter, Empty) {
   MinidumpFileWriter minidump_file_writer;
   auto memory_info_list_writer =
-      base::WrapUnique(new MinidumpMemoryInfoListWriter());
+      std::make_unique<MinidumpMemoryInfoListWriter>();
   ASSERT_TRUE(
       minidump_file_writer.AddStream(std::move(memory_info_list_writer)));
 
@@ -80,18 +80,20 @@ TEST(MinidumpMemoryInfoWriter, Empty) {
 TEST(MinidumpMemoryInfoWriter, OneRegion) {
   MinidumpFileWriter minidump_file_writer;
   auto memory_info_list_writer =
-      base::WrapUnique(new MinidumpMemoryInfoListWriter());
+      std::make_unique<MinidumpMemoryInfoListWriter>();
 
-  auto memory_map_region = base::WrapUnique(new TestMemoryMapRegionSnapshot());
+  auto memory_map_region = std::make_unique<TestMemoryMapRegionSnapshot>();
 
-  MINIDUMP_MEMORY_INFO mmi = {0};
+  MINIDUMP_MEMORY_INFO mmi;
   mmi.BaseAddress = 0x12340000;
   mmi.AllocationBase = 0x12000000;
   mmi.AllocationProtect = PAGE_READWRITE;
+  mmi.__alignment1 = 0;
   mmi.RegionSize = 0x6000;
   mmi.State = MEM_COMMIT;
   mmi.Protect = PAGE_NOACCESS;
   mmi.Type = MEM_PRIVATE;
+  mmi.__alignment2 = 0;
   memory_map_region->SetMindumpMemoryInfo(mmi);
 
   std::vector<const MemoryMapRegionSnapshot*> memory_map;

@@ -1,3 +1,4 @@
+// This file is generated. Do not edit.
 #ifndef VP9_RTCD_H_
 #define VP9_RTCD_H_
 
@@ -11,10 +12,10 @@
  * VP9
  */
 
-#include "vpx/vpx_integer.h"
 #include "vp9/common/vp9_common.h"
 #include "vp9/common/vp9_enums.h"
 #include "vp9/common/vp9_filter.h"
+#include "vpx/vpx_integer.h"
 
 struct macroblockd;
 
@@ -36,11 +37,11 @@ int64_t vp9_block_error_c(const tran_low_t* coeff,
                           int64_t* ssz);
 #define vp9_block_error vp9_block_error_c
 
-int64_t vp9_block_error_fp_c(const int16_t* coeff,
-                             const int16_t* dqcoeff,
+int64_t vp9_block_error_fp_c(const tran_low_t* coeff,
+                             const tran_low_t* dqcoeff,
                              int block_size);
-int64_t vp9_block_error_fp_neon(const int16_t* coeff,
-                                const int16_t* dqcoeff,
+int64_t vp9_block_error_fp_neon(const tran_low_t* coeff,
+                                const tran_low_t* dqcoeff,
                                 int block_size);
 #define vp9_block_error_fp vp9_block_error_fp_neon
 
@@ -216,7 +217,11 @@ void vp9_scale_and_extend_frame_c(const struct yv12_buffer_config* src,
                                   struct yv12_buffer_config* dst,
                                   INTERP_FILTER filter_type,
                                   int phase_scaler);
-#define vp9_scale_and_extend_frame vp9_scale_and_extend_frame_c
+void vp9_scale_and_extend_frame_neon(const struct yv12_buffer_config* src,
+                                     struct yv12_buffer_config* dst,
+                                     INTERP_FILTER filter_type,
+                                     int phase_scaler);
+#define vp9_scale_and_extend_frame vp9_scale_and_extend_frame_neon
 
 void vp9_rtcd(void);
 

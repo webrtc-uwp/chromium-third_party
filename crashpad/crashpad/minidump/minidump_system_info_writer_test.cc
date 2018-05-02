@@ -21,14 +21,13 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
-#include "base/memory/ptr_util.h"
 #include "gtest/gtest.h"
 #include "minidump/minidump_file_writer.h"
 #include "minidump/test/minidump_file_writer_test_util.h"
 #include "minidump/test/minidump_string_writer_test_util.h"
 #include "minidump/test/minidump_writable_test_util.h"
 #include "snapshot/test/test_system_snapshot.h"
-#include "test/gtest_death_check.h"
+#include "test/gtest_death.h"
 #include "util/file/string_file.h"
 
 namespace crashpad {
@@ -40,11 +39,11 @@ void GetSystemInfoStream(const std::string& file_contents,
                          const MINIDUMP_SYSTEM_INFO** system_info,
                          const MINIDUMP_STRING** csd_version) {
   // The expected number of bytes for the CSD version’s MINIDUMP_STRING::Buffer.
-  MINIDUMP_STRING tmp = {0};
+  MINIDUMP_STRING* tmp;
   ALLOW_UNUSED_LOCAL(tmp);
-  const size_t kCSDVersionBytes = csd_version_length * sizeof(tmp.Buffer[0]);
+  const size_t kCSDVersionBytes = csd_version_length * sizeof(tmp->Buffer[0]);
   const size_t kCSDVersionBytesWithNUL =
-      kCSDVersionBytes + sizeof(tmp.Buffer[0]);
+      kCSDVersionBytes + sizeof(tmp->Buffer[0]);
 
   constexpr size_t kDirectoryOffset = sizeof(MINIDUMP_HEADER);
   constexpr size_t kSystemInfoStreamOffset =
@@ -78,7 +77,7 @@ void GetSystemInfoStream(const std::string& file_contents,
 
 TEST(MinidumpSystemInfoWriter, Empty) {
   MinidumpFileWriter minidump_file_writer;
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
 
   system_info_writer->SetCSDVersion(std::string());
 
@@ -118,7 +117,7 @@ TEST(MinidumpSystemInfoWriter, Empty) {
 
 TEST(MinidumpSystemInfoWriter, X86_Win) {
   MinidumpFileWriter minidump_file_writer;
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
 
   constexpr MinidumpCPUArchitecture kCPUArchitecture =
       kMinidumpCPUArchitectureX86;
@@ -189,7 +188,7 @@ TEST(MinidumpSystemInfoWriter, X86_Win) {
 
 TEST(MinidumpSystemInfoWriter, AMD64_Mac) {
   MinidumpFileWriter minidump_file_writer;
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
 
   constexpr MinidumpCPUArchitecture kCPUArchitecture =
       kMinidumpCPUArchitectureAMD64;
@@ -246,7 +245,7 @@ TEST(MinidumpSystemInfoWriter, X86_CPUVendorFromRegisters) {
   // This test exercises SetCPUX86Vendor() to set the vendor from register
   // values.
   MinidumpFileWriter minidump_file_writer;
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
 
   constexpr MinidumpCPUArchitecture kCPUArchitecture =
       kMinidumpCPUArchitectureX86;
@@ -333,7 +332,7 @@ TEST(MinidumpSystemInfoWriter, InitializeFromSnapshot_X86) {
                                expect_system_info.BuildNumber,
                                kOSVersionBuild);
 
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
   system_info_writer->InitializeFromSnapshot(&system_snapshot);
 
   MinidumpFileWriter minidump_file_writer;
@@ -429,7 +428,7 @@ TEST(MinidumpSystemInfoWriter, InitializeFromSnapshot_AMD64) {
                                kOSVersionBuild);
   system_snapshot.SetNXEnabled(true);
 
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
   system_info_writer->InitializeFromSnapshot(&system_snapshot);
 
   MinidumpFileWriter minidump_file_writer;
@@ -470,7 +469,7 @@ TEST(MinidumpSystemInfoWriter, InitializeFromSnapshot_AMD64) {
 
 TEST(MinidumpSystemInfoWriterDeathTest, NoCSDVersion) {
   MinidumpFileWriter minidump_file_writer;
-  auto system_info_writer = base::WrapUnique(new MinidumpSystemInfoWriter());
+  auto system_info_writer = std::make_unique<MinidumpSystemInfoWriter>();
   ASSERT_TRUE(minidump_file_writer.AddStream(std::move(system_info_writer)));
 
   StringFile string_file;

@@ -46,15 +46,29 @@ bool ThreadSnapshotLinux::Initialize(
   if (process_reader->Is64Bit()) {
     context_.architecture = kCPUArchitectureX86_64;
     context_.x86_64 = &context_union_.x86_64;
-    InitializeCPUContextX86_64(thread.thread_context.t64,
-                               thread.float_context.f64,
+    InitializeCPUContextX86_64(thread.thread_info.thread_context.t64,
+                               thread.thread_info.float_context.f64,
                                context_.x86_64);
   } else {
     context_.architecture = kCPUArchitectureX86;
     context_.x86 = &context_union_.x86;
-    InitializeCPUContextX86(thread.thread_context.t32,
-                            thread.float_context.f32,
+    InitializeCPUContextX86(thread.thread_info.thread_context.t32,
+                            thread.thread_info.float_context.f32,
                             context_.x86);
+  }
+#elif defined(ARCH_CPU_ARM_FAMILY)
+  if (process_reader->Is64Bit()) {
+    context_.architecture = kCPUArchitectureARM64;
+    context_.arm64 = &context_union_.arm64;
+    InitializeCPUContextARM64(thread.thread_info.thread_context.t64,
+                              thread.thread_info.float_context.f64,
+                              context_.arm64);
+  } else {
+    context_.architecture = kCPUArchitectureARM;
+    context_.arm = &context_union_.arm;
+    InitializeCPUContextARM(thread.thread_info.thread_context.t32,
+                            thread.thread_info.float_context.f32,
+                            context_.arm);
   }
 #else
 #error Port.
@@ -65,7 +79,7 @@ bool ThreadSnapshotLinux::Initialize(
                     thread.stack_region_size);
 
   thread_specific_data_address_ =
-      thread.thread_specific_data_address;
+      thread.thread_info.thread_specific_data_address;
 
   thread_id_ = thread.tid;
 

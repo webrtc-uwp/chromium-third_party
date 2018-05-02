@@ -371,6 +371,10 @@ JNI_GENERATOR_EXPORT jboolean
 Java_com_google_vr_ndk_base_GvrApi_nativeUsingDynamicLibrary(JNIEnv* env,
                                                              jclass jcaller);
 
+JNI_GENERATOR_EXPORT jboolean
+Java_com_google_vr_ndk_base_GvrApi_nativeUsingShimLibrary(JNIEnv* env,
+                                                          jclass jcaller);
+
 JNI_GENERATOR_EXPORT void
 Java_com_google_vr_ndk_base_GvrApi_nativeSetApplicationState(JNIEnv* env,
                                                              jclass jcaller,
@@ -522,7 +526,15 @@ Java_com_google_vr_ndk_base_GvrApi_nativeGetHeadSpaceFromStartSpaceRotation(
     JNIEnv* env,
     jobject jcaller,
     jlong nativeGvrContext,
-    jfloatArray outPose,
+    jfloatArray outRotation,
+    jlong timeNs);
+
+JNI_GENERATOR_EXPORT void
+Java_com_google_vr_ndk_base_GvrApi_nativeGetHeadSpaceFromStartSpaceTransform(
+    JNIEnv* env,
+    jobject jcaller,
+    jlong nativeGvrContext,
+    jfloatArray outTransform,
     jlong timeNs);
 
 JNI_GENERATOR_EXPORT void
@@ -679,7 +691,8 @@ Java_com_google_vr_ndk_base_GvrApi_nativeSetLensOffset(JNIEnv* env,
                                                        jobject jcaller,
                                                        jlong nativeGvrContext,
                                                        jfloat x,
-                                                       jfloat y);
+                                                       jfloat y,
+                                                       jfloat rotation);
 
 JNI_GENERATOR_EXPORT void
 Java_com_google_vr_ndk_base_GvrApi_nativeDumpDebugData(JNIEnv* env,
@@ -1082,6 +1095,12 @@ static const JNINativeMethod kMethodsGvrApi[] = {
      "Z",
      reinterpret_cast<void*>(
          Java_com_google_vr_ndk_base_GvrApi_nativeUsingDynamicLibrary)},
+    {"nativeUsingShimLibrary",
+     "("
+     ")"
+     "Z",
+     reinterpret_cast<void*>(
+         Java_com_google_vr_ndk_base_GvrApi_nativeUsingShimLibrary)},
     {"nativeSetApplicationState",
      "("
      "Ljava/lang/ClassLoader;"
@@ -1266,6 +1285,15 @@ static const JNINativeMethod kMethodsGvrApi[] = {
      "V",
      reinterpret_cast<void*>(
          Java_com_google_vr_ndk_base_GvrApi_nativeGetHeadSpaceFromStartSpaceRotation)},
+    {"nativeGetHeadSpaceFromStartSpaceTransform",
+     "("
+     "J"
+     "[F"
+     "J"
+     ")"
+     "V",
+     reinterpret_cast<void*>(
+         Java_com_google_vr_ndk_base_GvrApi_nativeGetHeadSpaceFromStartSpaceTransform)},
     {"nativeSetIgnoreManualPauseResumeTracker",
      "("
      "J"
@@ -1449,6 +1477,7 @@ static const JNINativeMethod kMethodsGvrApi[] = {
      "J"
      "F"
      "F"
+     "F"
      ")"
      "V",
      reinterpret_cast<void*>(
@@ -1470,7 +1499,7 @@ static const JNINativeMethod kMethodsGvrApi[] = {
 };
 
 static bool RegisterNativesImpl(JNIEnv* env) {
-  if (jni_generator::ShouldSkipJniRegistration(false))
+  if (base::android::IsSelectiveJniRegistrationEnabled(env))
     return true;
 
   const int kMethodsGvrApiSize = arraysize(kMethodsGvrApi);

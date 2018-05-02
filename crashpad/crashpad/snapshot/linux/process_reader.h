@@ -19,15 +19,20 @@
 #include <sys/types.h>
 
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "base/macros.h"
+#include "snapshot/elf/elf_image_reader.h"
+#include "snapshot/module_snapshot.h"
 #include "util/linux/address_types.h"
 #include "util/linux/memory_map.h"
-#include "util/linux/process_memory.h"
+#include "util/linux/ptrace_connection.h"
 #include "util/linux/thread_info.h"
-#include "util/posix/process_info.h"
 #include "util/misc/initialization_state_dcheck.h"
+#include "util/posix/process_info.h"
+#include "util/process/process_memory.h"
+#include "util/process/process_memory_linux.h"
 
 namespace crashpad {
 
@@ -40,9 +45,7 @@ class ProcessReader {
     Thread();
     ~Thread();
 
-    ThreadContext thread_context;
-    FloatContext float_context;
-    LinuxVMAddress thread_specific_data_address;
+    ThreadInfo thread_info;
     LinuxVMAddress stack_region_address;
     LinuxVMSize stack_region_size;
     pid_t tid;
@@ -53,8 +56,29 @@ class ProcessReader {
    private:
     friend class ProcessReader;
 
-    bool InitializePtrace();
+    bool InitializePtrace(PtraceConnection* connection);
     void InitializeStack(ProcessReader* reader);
+  };
+
+  //! \brief Contains information about a module loaded into a process.
+  struct Module {
+    Module();
+    ~Module();
+
+    //! \brief The pathname used to load the module from disk.
+    std::string name;
+
+    //! \brief An image reader for the module.
+    //!
+    //! The lifetime of this ElfImageReader is scoped to the lifetime of the
+    //! ProcessReader that created it.
+    //!
+    //! This field may be `nullptr` if a reader could not be created for the
+    //! module.
+    ElfImageReader* elf_reader;
+
+    //! \brief The module's type.
+    ModuleSnapshot::ModuleType type;
   };
 
   ProcessReader();
@@ -63,11 +87,11 @@ class ProcessReader {
   //! \brief Initializes this object.
   //!
   //! This method must be successfully called before calling any other method in
-  //! this class.
+  //! this class and may only be called once.
   //!
-  //! \param[in] pid The process ID of the target process.
+  //! \param[in] connection A PtraceConnection to the target process.
   //! \return `true` on success. `false` on failure with a message logged.
-  bool Initialize(pid_t pid);
+  bool Initialize(PtraceConnection* connection);
 
   //! \brief Return `true` if the target task is a 64-bit process.
   bool Is64Bit() const { return is_64_bit_; }
@@ -79,7 +103,7 @@ class ProcessReader {
   pid_t ParentProcessID() const { return process_info_.ParentProcessID(); }
 
   //! \brief Return a memory reader for the target process.
-  ProcessMemory* Memory() { return process_memory_.get(); }
+  ProcessMemory* Memory() { return &process_memory_; }
 
   //! \brief Return a memory map of the target process.
   MemoryMap* GetMemoryMap() { return &memory_map_; }
@@ -108,15 +132,24 @@ class ProcessReader {
   //!     index `0`.
   const std::vector<Thread>& Threads();
 
+  //! \return The modules loaded in the process. The first element (at index
+  //!     `0`) corresponds to the main executable.
+  const std::vector<Module>& Modules();
+
  private:
   void InitializeThreads();
+  void InitializeModules();
 
+  PtraceConnection* connection_;  // weak
   ProcessInfo process_info_;
-  class MemoryMap memory_map_;
+  MemoryMap memory_map_;
   std::vector<Thread> threads_;
-  std::unique_ptr<ProcessMemory> process_memory_;
+  std::vector<Module> modules_;
+  std::vector<std::unique_ptr<ElfImageReader>> elf_readers_;
+  ProcessMemoryLinux process_memory_;
   bool is_64_bit_;
   bool initialized_threads_;
+  bool initialized_modules_;
   InitializationStateDcheck initialized_;
 
   DISALLOW_COPY_AND_ASSIGN(ProcessReader);

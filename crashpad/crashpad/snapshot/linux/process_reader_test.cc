@@ -15,6 +15,7 @@
 #include "snapshot/linux/process_reader.h"
 
 #include <errno.h>
+#include <link.h>
 #include <pthread.h>
 #include <sched.h>
 #include <stdlib.h>
@@ -24,7 +25,9 @@
 #include <unistd.h>
 
 #include <map>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "base/format_macros.h"
 #include "base/memory/free_deleter.h"
@@ -32,11 +35,17 @@
 #include "build/build_config.h"
 #include "gtest/gtest.h"
 #include "test/errors.h"
+#include "test/linux/fake_ptrace_connection.h"
+#include "test/linux/get_tls.h"
 #include "test/multiprocess.h"
 #include "util/file/file_io.h"
+#include "util/linux/direct_ptrace_connection.h"
 #include "util/misc/from_pointer_cast.h"
-#include "util/stdlib/pointer_container.h"
 #include "util/synchronization/semaphore.h"
+
+#if defined(OS_ANDROID)
+#include <android/api-level.h>
+#endif
 
 namespace crashpad {
 namespace test {
@@ -46,36 +55,17 @@ pid_t gettid() {
   return syscall(SYS_gettid);
 }
 
-LinuxVMAddress GetTLS() {
-  LinuxVMAddress tls;
-#if defined(ARCH_CPU_ARMEL)
-  // 0xffff0fe0 is the address of the kernel user helper __kuser_get_tls().
-  auto kuser_get_tls = reinterpret_cast<void* (*)()>(0xffff0fe0);
-  tls = FromPointerCast<LinuxVMAddress>(kuser_get_tls());
-#elif defined(ARCH_CPU_ARM64)
-  // Linux/aarch64 places the tls address in system register tpidr_el0.
-  asm("mrs %0, tpidr_el0" : "=r"(tls));
-#elif defined(ARCH_CPU_X86)
-  uint32_t tls_32;
-  asm("movl %%gs:0x0, %0" : "=r"(tls_32));
-  tls = tls_32;
-#elif defined(ARCH_CPU_X86_64)
-  asm("movq %%fs:0x0, %0" : "=r"(tls));
-#else
-#error Port.
-#endif  // ARCH_CPU_ARMEL
-
-  return tls;
-}
-
 TEST(ProcessReader, SelfBasic) {
-  ProcessReader process_reader;
-  ASSERT_TRUE(process_reader.Initialize(getpid()));
+  FakePtraceConnection connection;
+  connection.Initialize(getpid());
 
-#if !defined(ARCH_CPU_64_BITS)
-  EXPECT_FALSE(process_reader.Is64Bit());
-#else
+  ProcessReader process_reader;
+  ASSERT_TRUE(process_reader.Initialize(&connection));
+
+#if defined(ARCH_CPU_64_BITS)
   EXPECT_TRUE(process_reader.Is64Bit());
+#else
+  EXPECT_FALSE(process_reader.Is64Bit());
 #endif
 
   EXPECT_EQ(process_reader.ProcessID(), getpid());
@@ -99,8 +89,11 @@ class BasicChildTest : public Multiprocess {
 
  private:
   void MultiprocessParent() override {
+    DirectPtraceConnection connection;
+    ASSERT_TRUE(connection.Initialize(ChildPID()));
+
     ProcessReader process_reader;
-    ASSERT_TRUE(process_reader.Initialize(ChildPID()));
+    ASSERT_TRUE(process_reader.Initialize(&connection));
 
 #if !defined(ARCH_CPU_64_BITS)
     EXPECT_FALSE(process_reader.Is64Bit());
@@ -141,11 +134,11 @@ class TestThreadPool {
   TestThreadPool() : threads_() {}
 
   ~TestThreadPool() {
-    for (Thread* thread : threads_) {
+    for (const auto& thread : threads_) {
       thread->exit_semaphore.Signal();
     }
 
-    for (const Thread* thread : threads_) {
+    for (const auto& thread : threads_) {
       EXPECT_EQ(pthread_join(thread->pthread, nullptr), 0)
           << ErrnoMessage("pthread_join");
     }
@@ -153,8 +146,8 @@ class TestThreadPool {
 
   void StartThreads(size_t thread_count, size_t stack_size = 0) {
     for (size_t thread_index = 0; thread_index < thread_count; ++thread_index) {
-      Thread* thread = new Thread();
-      threads_.push_back(thread);
+      threads_.push_back(std::make_unique<Thread>());
+      Thread* thread = threads_.back().get();
 
       pthread_attr_t attr;
       ASSERT_EQ(pthread_attr_init(&attr), 0)
@@ -189,7 +182,7 @@ class TestThreadPool {
           << ErrnoMessage("pthread_create");
     }
 
-    for (Thread* thread : threads_) {
+    for (const auto& thread : threads_) {
       thread->ready_semaphore.Wait();
     }
   }
@@ -198,7 +191,7 @@ class TestThreadPool {
                              ThreadExpectation* expectation) {
     CHECK_LT(thread_index, threads_.size());
 
-    const Thread* thread = threads_[thread_index];
+    const Thread* thread = threads_[thread_index].get();
     *expectation = thread->expectation;
     return thread->tid;
   }
@@ -240,7 +233,7 @@ class TestThreadPool {
     return nullptr;
   }
 
-  PointerVector<Thread> threads_;
+  std::vector<std::unique_ptr<Thread>> threads_;
 
   DISALLOW_COPY_AND_ASSIGN(TestThreadPool);
 };
@@ -255,18 +248,19 @@ void ExpectThreads(const ThreadMap& thread_map,
   ASSERT_TRUE(memory_map.Initialize(pid));
 
   for (const auto& thread : threads) {
-    SCOPED_TRACE(base::StringPrintf("Thread id %d, tls 0x%" PRIx64
-                                    ", stack addr 0x%" PRIx64
-                                    ", stack size 0x%" PRIx64,
-                                    thread.tid,
-                                    thread.thread_specific_data_address,
-                                    thread.stack_region_address,
-                                    thread.stack_region_size));
+    SCOPED_TRACE(
+        base::StringPrintf("Thread id %d, tls 0x%" PRIx64
+                           ", stack addr 0x%" PRIx64 ", stack size 0x%" PRIx64,
+                           thread.tid,
+                           thread.thread_info.thread_specific_data_address,
+                           thread.stack_region_address,
+                           thread.stack_region_size));
 
     const auto& iterator = thread_map.find(thread.tid);
     ASSERT_NE(iterator, thread_map.end());
 
-    EXPECT_EQ(thread.thread_specific_data_address, iterator->second.tls);
+    EXPECT_EQ(thread.thread_info.thread_specific_data_address,
+              iterator->second.tls);
 
     ASSERT_TRUE(memory_map.FindMapping(thread.stack_region_address));
     EXPECT_LE(thread.stack_region_address, iterator->second.stack_address);
@@ -305,8 +299,11 @@ class ChildThreadTest : public Multiprocess {
       thread_map[tid] = expectation;
     }
 
+    DirectPtraceConnection connection;
+    ASSERT_TRUE(connection.Initialize(ChildPID()));
+
     ProcessReader process_reader;
-    ASSERT_TRUE(process_reader.Initialize(ChildPID()));
+    ASSERT_TRUE(process_reader.Initialize(&connection));
     const std::vector<ProcessReader::Thread>& threads =
         process_reader.Threads();
     ExpectThreads(thread_map, threads, ChildPID());
@@ -379,8 +376,11 @@ class ChildWithSplitStackTest : public Multiprocess {
     CheckedReadFileExactly(ReadPipeHandle(), &stack_addr2, sizeof(stack_addr2));
     CheckedReadFileExactly(ReadPipeHandle(), &stack_addr3, sizeof(stack_addr3));
 
+    DirectPtraceConnection connection;
+    ASSERT_TRUE(connection.Initialize(ChildPID()));
+
     ProcessReader process_reader;
-    ASSERT_TRUE(process_reader.Initialize(ChildPID()));
+    ASSERT_TRUE(process_reader.Initialize(&connection));
 
     const std::vector<ProcessReader::Thread>& threads =
         process_reader.Threads();
@@ -442,6 +442,95 @@ class ChildWithSplitStackTest : public Multiprocess {
 
 TEST(ProcessReader, ChildWithSplitStack) {
   ChildWithSplitStackTest test;
+  test.Run();
+}
+
+// Android doesn't provide dl_iterate_phdr on ARM until API 21.
+#if !defined(OS_ANDROID) || !defined(ARCH_CPU_ARMEL) || __ANDROID_API__ >= 21
+int ExpectFindModule(dl_phdr_info* info, size_t size, void* data) {
+  SCOPED_TRACE(
+      base::StringPrintf("module %s at 0x%" PRIx64 " phdrs 0x%" PRIx64,
+                         info->dlpi_name,
+                         LinuxVMAddress{info->dlpi_addr},
+                         FromPointerCast<LinuxVMAddress>(info->dlpi_phdr)));
+  auto modules =
+      reinterpret_cast<const std::vector<ProcessReader::Module>*>(data);
+
+  auto phdr_addr = FromPointerCast<LinuxVMAddress>(info->dlpi_phdr);
+
+#if defined(OS_ANDROID)
+  // Bionic includes a null entry.
+  if (!phdr_addr) {
+    EXPECT_EQ(info->dlpi_name, nullptr);
+    EXPECT_EQ(info->dlpi_addr, 0u);
+    EXPECT_EQ(info->dlpi_phnum, 0u);
+    return 0;
+  }
+#endif
+
+  // TODO(jperaza): This can use a range map when one is available.
+  bool found = false;
+  for (const auto& module : *modules) {
+    if (module.elf_reader && phdr_addr >= module.elf_reader->Address() &&
+        phdr_addr < module.elf_reader->Address() + module.elf_reader->Size()) {
+      found = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found);
+  return 0;
+}
+#endif  // !OS_ANDROID || !ARCH_CPU_ARMEL || __ANDROID_API__ >= 21
+
+void ExpectModulesFromSelf(const std::vector<ProcessReader::Module>& modules) {
+  for (const auto& module : modules) {
+    EXPECT_FALSE(module.name.empty());
+    EXPECT_NE(module.type, ModuleSnapshot::kModuleTypeUnknown);
+  }
+
+// Android doesn't provide dl_iterate_phdr on ARM until API 21.
+#if !defined(OS_ANDROID) || !defined(ARCH_CPU_ARMEL) || __ANDROID_API__ >= 21
+  EXPECT_EQ(dl_iterate_phdr(
+                ExpectFindModule,
+                reinterpret_cast<void*>(
+                    const_cast<std::vector<ProcessReader::Module>*>(&modules))),
+            0);
+#endif  // !OS_ANDROID || !ARCH_CPU_ARMEL || __ANDROID_API__ >= 21
+}
+
+TEST(ProcessReader, SelfModules) {
+  FakePtraceConnection connection;
+  connection.Initialize(getpid());
+
+  ProcessReader process_reader;
+  ASSERT_TRUE(process_reader.Initialize(&connection));
+
+  ExpectModulesFromSelf(process_reader.Modules());
+}
+
+class ChildModuleTest : public Multiprocess {
+ public:
+  ChildModuleTest() : Multiprocess() {}
+  ~ChildModuleTest() = default;
+
+ private:
+  void MultiprocessParent() override {
+    DirectPtraceConnection connection;
+    ASSERT_TRUE(connection.Initialize(ChildPID()));
+
+    ProcessReader process_reader;
+    ASSERT_TRUE(process_reader.Initialize(&connection));
+
+    ExpectModulesFromSelf(process_reader.Modules());
+  }
+
+  void MultiprocessChild() override { CheckedReadFileAtEOF(ReadPipeHandle()); }
+
+  DISALLOW_COPY_AND_ASSIGN(ChildModuleTest);
+};
+
+TEST(ProcessReader, ChildModules) {
+  ChildModuleTest test;
   test.Run();
 }
 

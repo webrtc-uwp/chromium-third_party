@@ -186,7 +186,7 @@ do_catchsql_test indexexpr1-300 {
 } {1 {non-deterministic functions prohibited in index expressions}}
 do_catchsql_test indexexpr1-301 {
   CREATE INDEX t2x1 ON t2(julianday('now',a));
-} {1 {non-deterministic function}}
+} {1 {non-deterministic function in index expression or CHECK constraint}}
 do_catchsql_test indexexpr1-310 {
   CREATE INDEX t2x2 ON t2(a,b+(SELECT 15));
 } {1 {subqueries prohibited in index expressions}}
@@ -380,7 +380,49 @@ do_execsql_test indexexpr1-1300.1 {
   SELECT a FROM t1300 WHERE substr(b,4)='ess' COLLATE nocase ORDER BY +a;
 } {3 4}
 
-# Date and time functions can participate in an index as long as they
-# do not contain
+# Ticket https://sqlite.org/src/tktview/aa98619a
+# Assertion fault using an index on a constant
+#
+do_execsql_test indexexpr1-1400 {
+  CREATE TABLE t1400(x TEXT);
+  CREATE INDEX t1400x ON t1400(1);  -- Index on a constant
+  SELECT 1 IN (SELECT 2) FROM t1400;
+} {}
+do_execsql_test indexexpr1-1410 {
+  INSERT INTO t1400 VALUES('a'),('b');
+  SELECT 1 IN (SELECT 2) FROM t1400;
+} {0 0}
+do_execsql_test indexexpr1-1420 {
+  SELECT 1 IN (SELECT 2 UNION ALL SELECT 1) FROM t1400;
+} {1 1}
+do_execsql_test indexexpr1-1430 {
+  DROP INDEX t1400x;
+  CREATE INDEX t1400x ON t1400(abs(15+3));
+  SELECT abs(15+3) IN (SELECT 17 UNION ALL SELECT 18) FROM t1;
+} {1 1}
+
+# 2018-01-02 ticket https://sqlite.org/src/info/dc3f932f5a147771
+# A REPLACE into a table that uses an index on an expression causes
+# an assertion fault.  Problem discovered by OSSFuzz.
+#
+do_execsql_test indexexpr1-1500 {
+  CREATE TABLE t1500(a INT PRIMARY KEY, b INT UNIQUE);
+  CREATE INDEX t1500ab ON t1500(a*b);
+  INSERT INTO t1500(a,b) VALUES(1,2);
+  REPLACE INTO t1500(a,b) VALUES(1,3);  -- formerly caused assertion fault
+  SELECT * FROM t1500;
+} {1 3}
+
+# 2018-01-03 OSSFuzz discovers another test case for the same problem
+# above.
+#
+do_execsql_test indexexpr-1510 {
+  DROP TABLE IF EXISTS t1;
+  CREATE TABLE t1(a PRIMARY KEY,b UNIQUE);
+  REPLACE INTO t1 VALUES(2, 1);
+  REPLACE INTO t1 SELECT 6,1;
+  CREATE INDEX t1aa ON t1(a-a);
+  REPLACE INTO t1 SELECT a, randomblob(a) FROM t1
+} {}
 
 finish_test
