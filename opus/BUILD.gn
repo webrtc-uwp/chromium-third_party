@@ -488,6 +488,9 @@ test("test_opus_encode") {
   deps = [
     ":opus",
   ]
+  if (current_os == "winuwp") {
+    deps += [ "//third_party/winuwp_compat:force_include_std" ]
+  }
 }
 
 # GN orders flags on a target before flags from configs. The default config
@@ -518,6 +521,9 @@ test("test_opus_decode") {
   deps = [
     ":opus",
   ]
+  if (current_os == "winuwp") {
+    deps += [ "//third_party/winuwp_compat:force_include_std" ]
+  }
 }
 
 test("test_opus_padding") {

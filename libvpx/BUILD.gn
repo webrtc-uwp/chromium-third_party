@@ -40,6 +40,8 @@ if (is_nacl) {
     os_category = current_os
   } else if (is_posix) {  # Should cover linux, mac, and the ios simulator.
     os_category = "linux"
+  } else if (current_os == "winuwp") {
+    os_category = "win"
   } else {  # This should only match windows.
     os_category = current_os
   }

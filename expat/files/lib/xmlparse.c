@@ -2151,6 +2151,8 @@ XML_GetBuffer(XML_Parser parser, int len)
       }
       bufferLim = newBuf + bufferSize;
 #ifdef XML_CONTEXT_BYTES
+  //Disable Declaration of 'keep' hides previous local declaration
+#pragma warning (disable: 4456)
       if (bufferPtr) {
         int keep = (int)(bufferPtr - buffer);
         if (keep > XML_CONTEXT_BYTES)
@@ -4984,6 +4986,8 @@ doProlog(XML_Parser parser,
       }
       break;
 #endif /* XML_DTD */
+//Disable Declaration of 'temp' hides previous local declaration
+#pragma warning (disable: 4456)
     case XML_ROLE_GROUP_OPEN:
       if (prologState.level >= groupSize) {
         if (groupSize) {
