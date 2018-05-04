@@ -49,7 +49,7 @@ if (use_opus_rtcd) {
   
   if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "win" && target_os == "winuwp") {
     action("convert_rtcd_assembler_for_winuwp") {
-      script = "//third_party/opus/run_perl.py"
+      script = "//webrtc/build/Win_ARM_Tools/run_arm_asm_compiler.py"
       outputs = [
         "$target_gen_dir/celt_pitch_xcorr_arm.asm",
       ]
@@ -63,6 +63,10 @@ if (use_opus_rtcd) {
         "../../third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s",
         "-o",
         rebase_path("$target_gen_dir/celt_pitch_xcorr_arm.asm", root_build_dir),
+        "-p",
+        "environment.store_arm",
+        "-l",
+        "../../third_party/opus/",
       ]
     }
   }
