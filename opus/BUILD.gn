@@ -23,7 +23,7 @@ config("opus_config") {
     defines = [ "OPUS_FIXED_POINT" ]
   }
   
-  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "win" && target_os == "winuwp") {
+  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
     defines += [ "USE_MSVS_ARM_INTRINCICS" ]
   }
 }
@@ -47,7 +47,7 @@ config("opus_test_config") {
 
 if (use_opus_rtcd) {
   
-  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "win" && target_os == "winuwp") {
+  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
     action("convert_rtcd_assembler_for_winuwp") {
       script = "//webrtc/build/Win_ARM_Tools/run_arm_asm_compiler.py"
       outputs = [
@@ -399,7 +399,7 @@ static_library("opus") {
 
     if (use_opus_rtcd) {
     
-      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "win" && target_os == "winuwp") {
+      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
         sources += get_target_outputs(":convert_rtcd_assembler_for_winuwp")
       } else {
         sources += [ "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", ]
@@ -420,7 +420,7 @@ static_library("opus") {
         "OPUS_HAVE_RTCD",
       ]
 
-      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "win" && target_os == "winuwp")  {
+      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp")  {
         deps = [
           ":convert_rtcd_assembler_for_winuwp",
         ]
@@ -522,7 +522,7 @@ test("test_opus_encode") {
   deps = [
     ":opus",
   ]
-  if (is_target_winuwp) {
+  if (current_os == "winuwp") {
     deps += [ "//third_party/winuwp_compat:force_include_std" ]
   }
 }
@@ -555,7 +555,7 @@ test("test_opus_decode") {
   deps = [
     ":opus",
   ]
-  if (is_target_winuwp) {
+  if (current_os == "winuwp") {
     deps += [ "//third_party/winuwp_compat:force_include_std" ]
   }
 }
