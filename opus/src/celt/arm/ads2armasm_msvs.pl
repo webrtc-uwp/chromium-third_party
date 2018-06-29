@@ -20,7 +20,10 @@ print ";  using the ads2armasm_ms.pl script.\n";
 
 copy("$RealBin/armopts.s.msvs","$RealBin/armopts.s") or die "Copy failed: $!";
 
-while (<STDIN>)
+my $filename = 'aux.txt';
+open(my $fh, '>', $filename) or die "Could not open file '$filename' $!";
+
+while (<>)
 {
     undef $comment;
     undef $line;
@@ -41,6 +44,10 @@ while (<STDIN>)
     s/ldrneh/ldrhne/i;
     s/^(\s*)ENDP.*/$&\n$1ALIGN 4/;
 
-    print;
+    print $fh $_;
 }
 
+close $fh;
+copy("aux.txt","gen/third_party/opus/celt_pitch_xcorr_arm.asm") or die "Copy failed: $!";
+unlink $filename;
+print "\ncelt_pitch_xcorr_arm.asm created\n";
