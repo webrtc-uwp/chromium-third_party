@@ -20,7 +20,7 @@ print ";  using the ads2armasm_ms.pl script.\n";
 
 copy("$RealBin/armopts.s.msvs","$RealBin/armopts.s") or die "Copy failed: $!";
 
-my $filename = 'aux.txt';
+my $filename = 'auxFile.txt';
 open(my $fh, '>', $filename) or die "Could not open file '$filename' $!";
 
 while (<>)
@@ -48,6 +48,6 @@ while (<>)
 }
 
 close $fh;
-copy("aux.txt","gen/third_party/opus/celt_pitch_xcorr_arm.asm") or die "Copy failed: $!";
+copy("auxFile.txt","gen/third_party/opus/celt_pitch_xcorr_arm.asm") or die "Copy failed: $!";
 unlink $filename;
 print "\ncelt_pitch_xcorr_arm.asm created\n";
