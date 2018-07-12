@@ -433,36 +433,36 @@ static_library("opus") {
           ":convert_rtcd_assembler",
         ]
       }
->>>>>>> origin/Vladimir/20180614-test-merge-m62-winuwp-arm
 
-    if (arm_use_neon) {
-      sources += [
-        "src/celt/arm/celt_neon_intr.c",
-        "src/celt/arm/pitch_neon_intr.c",
-        "src/silk/arm/LPC_inv_pred_gain_arm.h",
-        "src/silk/arm/LPC_inv_pred_gain_neon_intr.c",
-        "src/silk/arm/NSQ_del_dec_arm.h",
-        "src/silk/arm/NSQ_del_dec_neon_intr.c",
-        "src/silk/arm/NSQ_neon.c",
-        "src/silk/arm/NSQ_neon.h",
-        "src/silk/arm/biquad_alt_arm.h",
-        "src/silk/arm/biquad_alt_neon_intr.c",
-        "src/silk/fixed/arm/warped_autocorrelation_FIX_arm.h",
-        "src/silk/fixed/arm/warped_autocorrelation_FIX_neon_intr.c",
-      ]
+      if (arm_use_neon) {
+        sources += [
+          "src/celt/arm/celt_neon_intr.c",
+          "src/celt/arm/pitch_neon_intr.c",
+          "src/silk/arm/LPC_inv_pred_gain_arm.h",
+          "src/silk/arm/LPC_inv_pred_gain_neon_intr.c",
+          "src/silk/arm/NSQ_del_dec_arm.h",
+          "src/silk/arm/NSQ_del_dec_neon_intr.c",
+          "src/silk/arm/NSQ_neon.c",
+          "src/silk/arm/NSQ_neon.h",
+          "src/silk/arm/biquad_alt_arm.h",
+          "src/silk/arm/biquad_alt_neon_intr.c",
+          "src/silk/fixed/arm/warped_autocorrelation_FIX_arm.h",
+          "src/silk/fixed/arm/warped_autocorrelation_FIX_neon_intr.c",
+        ]
 
-      defines += [
-        "OPUS_ARM_MAY_HAVE_NEON",
-        "OPUS_ARM_MAY_HAVE_NEON_INTR",
-      ]
-    }
+        defines += [
+          "OPUS_ARM_MAY_HAVE_NEON",
+          "OPUS_ARM_MAY_HAVE_NEON_INTR",
+        ]
+      }
 
-    if (is_ios && current_cpu == "arm64") {
+      if (is_ios && current_cpu == "arm64") {
       # Runtime detection of CPU features not available on iOS.
-      defines += [
-        "OPUS_ARM_PRESUME_NEON_INTR",
-        "OPUS_ARM_PRESUME_AARCH64_NEON_INTR",
-      ]
+        defines += [
+          "OPUS_ARM_PRESUME_NEON_INTR",
+          "OPUS_ARM_PRESUME_AARCH64_NEON_INTR",
+        ]
+      }
     }
   }
 }
