@@ -48,7 +48,7 @@ all_sources = crypto_sources + ssl_sources
 
 # Windows' assembly is built with Yasm. The other platforms use the platform
 # assembler.
-if (is_win && !is_msan && (current_cpu != "arm") &&
+if (is_win && !is_msan && (current_cpu != "arm") && (current_cpu != "arm64") &&
    (!((current_os == "winuwp") && (current_cpu == "x64")))) {
   import("//third_party/yasm/yasm_assemble.gni")
   yasm_assemble("boringssl_asm") {

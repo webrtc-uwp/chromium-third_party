@@ -12,11 +12,18 @@
 use FindBin;
 use lib $FindBin::Bin;
 use thumb;
+use File::Copy;
+use FindBin qw( $RealBin );
 
 print "; This file was created from a .asm file\n";
 print ";  using the ads2armasm_ms.pl script.\n";
 
-while (<STDIN>)
+copy("$RealBin/armopts.s.msvs","$RealBin/armopts.s") or die "Copy failed: $!";
+
+my $filename = 'auxFile.txt';
+open(my $fh, '>', $filename) or die "Could not open file '$filename' $!";
+
+while (<>)
 {
     undef $comment;
     undef $line;
@@ -37,6 +44,10 @@ while (<STDIN>)
     s/ldrneh/ldrhne/i;
     s/^(\s*)ENDP.*/$&\n$1ALIGN 4/;
 
-    print;
+    print $fh $_;
 }
 
+close $fh;
+copy("auxFile.txt","gen/third_party/opus/celt_pitch_xcorr_arm.asm") or die "Copy failed: $!";
+unlink $filename;
+print "\ncelt_pitch_xcorr_arm.asm created\n";

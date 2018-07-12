@@ -324,6 +324,10 @@ void vpx_idct16x16_256_add_c(const tran_low_t *input, uint8_t *dest, int dest_st
 void vpx_idct16x16_256_add_neon(const tran_low_t *input, uint8_t *dest, int dest_stride);
 #define vpx_idct16x16_256_add vpx_idct16x16_256_add_neon
 
+void vpx_idct16x16_38_add_c(const tran_low_t* input, uint8_t* dest, int dest_stride);
+void vpx_idct16x16_38_add_neon(const tran_low_t *input, uint8_t *dest, int dest_stride);
+#define vpx_idct16x16_38_add vpx_idct16x16_38_add_neon
+
 void vpx_idct32x32_1024_add_c(const tran_low_t *input, uint8_t *dest, int dest_stride);
 void vpx_idct32x32_1024_add_neon(const tran_low_t *input, uint8_t *dest, int dest_stride);
 #define vpx_idct32x32_1024_add vpx_idct32x32_1024_add_neon
@@ -373,6 +377,22 @@ void vpx_iwht4x4_16_add_c(const tran_low_t *input, uint8_t *dest, int dest_strid
 
 void vpx_iwht4x4_1_add_c(const tran_low_t *input, uint8_t *dest, int dest_stride);
 #define vpx_iwht4x4_1_add vpx_iwht4x4_1_add_c
+
+void vpx_lpf_horizontal_16_c(uint8_t *s, int pitch, const uint8_t *blimit, const uint8_t *limit, const uint8_t *thresh);
+void vpx_lpf_horizontal_16_neon(uint8_t *s, int pitch, const uint8_t *blimit, const uint8_t *limit, const uint8_t *thresh);
+#define vpx_lpf_horizontal_16 vpx_lpf_horizontal_16_neon
+
+void vpx_lpf_horizontal_16_dual_c(uint8_t* s,
+                                  int pitch,
+                                  const uint8_t* blimit,
+                                  const uint8_t* limit,
+                                  const uint8_t* thresh);
+void vpx_lpf_horizontal_16_dual_neon(uint8_t* s,
+                                     int pitch,
+                                     const uint8_t* blimit,
+                                     const uint8_t* limit,
+                                     const uint8_t* thresh);
+#define vpx_lpf_horizontal_16_dual vpx_lpf_horizontal_16_neon
 
 void vpx_lpf_horizontal_4_c(uint8_t *s, int pitch, const uint8_t *blimit, const uint8_t *limit, const uint8_t *thresh);
 void vpx_lpf_horizontal_4_neon(uint8_t *s, int pitch, const uint8_t *blimit, const uint8_t *limit, const uint8_t *thresh);

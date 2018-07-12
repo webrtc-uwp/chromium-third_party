@@ -16,13 +16,17 @@ use_opus_arm_optimization =
 # If OPUS Run Time CPU Detections (RTCD) shall be used.
 # Based on the conditions in celt/arm/armcpu.c:
 # defined(_MSC_VER) || defined(__linux__).
-use_opus_rtcd = current_cpu == "arm" && (is_win || is_android || is_linux)
+use_opus_rtcd = (current_cpu == "arm" || current_cpu == "arm64") && (is_win || is_android || is_linux)
 
 config("opus_config") {
   include_dirs = [ "src/include" ]
 
   if (use_opus_fixed_point) {
     defines = [ "OPUS_FIXED_POINT" ]
+  }
+  
+  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+    defines += [ "USE_MSVS_ARM_INTRINCICS" ]
   }
 }
 
@@ -44,6 +48,31 @@ config("opus_test_config") {
 }
 
 if (use_opus_rtcd) {
+  
+  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+    action("convert_rtcd_assembler_for_winuwp") {
+      script = "//webrtc/build/Win_ARM_Tools/run_arm_asm_compiler.py"
+      outputs = [
+        "$target_gen_dir/celt_pitch_xcorr_arm.asm",
+      ]
+      scriptPl =
+            "//third_party/opus/src/celt/arm/ads2armasm_msvs.pl"
+      
+      args = [
+        "-s",
+        rebase_path(scriptPl, root_build_dir),
+        "-i",
+        "../../third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s",
+        "-o",
+        rebase_path("$target_gen_dir/celt_pitch_xcorr_arm.asm", root_build_dir),
+        "-p",
+        "environment.store_arm",
+        "-l",
+        "../../third_party/opus/",
+      ]
+    }
+  }
+  
   action("convert_rtcd_assembler") {
     script = "convert_rtcd_assembler.py"
     outputs = [
@@ -250,6 +279,12 @@ static_library("opus") {
       "/wd4305",  # Disable truncation warning in celt/pitch.c .
       "/wd4334",  # Disable 32-bit shift warning in src/opus_encoder.c .
     ]
+    
+    if ((current_cpu == "arm" || current_cpu == "arm64") && target_os == "winuwp") {
+      cflags += [
+      "/wd4146",  # Disable unary minus operator applied to unsigned type, result still unsigned
+    ]
+    }
   } else {
     defines += [
       "HAVE_LRINT",
@@ -367,8 +402,13 @@ static_library("opus") {
     }
 
     if (use_opus_rtcd) {
+    
+      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+        sources += get_target_outputs(":convert_rtcd_assembler_for_winuwp")
+      } else {
+        sources += [ "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", ]
+      }
       sources += [
-        "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S",
         "src/celt/arm/arm_celt_map.c",
         "src/celt/arm/armcpu.c",
         "src/celt/arm/armcpu.h",
@@ -384,10 +424,16 @@ static_library("opus") {
         "OPUS_HAVE_RTCD",
       ]
 
-      deps = [
-        ":convert_rtcd_assembler",
-      ]
-    }
+      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp")  {
+        deps = [
+          ":convert_rtcd_assembler_for_winuwp",
+        ]
+      } else {
+        deps = [
+          ":convert_rtcd_assembler",
+        ]
+      }
+>>>>>>> origin/Vladimir/20180614-test-merge-m62-winuwp-arm
 
     if (arm_use_neon) {
       sources += [
