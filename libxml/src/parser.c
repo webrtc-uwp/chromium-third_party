@@ -147,7 +147,7 @@ xmlParserEntityCheck(xmlParserCtxtPtr ctxt, size_t size,
 	unsigned long oldnbent = ctxt->nbentities;
 	xmlChar *rep;
 
-	ent->guard = XML_ENTITY_BEING_CHECKED;
+        ent->guard = XML_ENTITY_BEING_CHECKED;
 	ent->checked = 1;
 
         ++ctxt->depth;

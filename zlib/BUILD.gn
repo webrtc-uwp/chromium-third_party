@@ -78,7 +78,7 @@ if (current_cpu == "arm" || current_cpu == "arm64") {
   source_set("zlib_arm_crc32") {
     visibility = [ ":*" ]
 
-    if (!is_ios && !is_chromeos && !is_fuchsia) {
+    if (is_clang && (!is_ios && !is_chromeos && !is_fuchsia)) {
       include_dirs = [ "." ]
 
       if (is_android) {
@@ -96,10 +96,6 @@ if (current_cpu == "arm" || current_cpu == "arm64") {
         "crc32_simd.c",
         "crc32_simd.h",
       ]
-
-      if (!is_win || is_clang) {
-        cflags_c = [ "-march=armv8-a+crc" ]
-      }
 
       if (!is_debug) {
         configs -= [ "//build/config/compiler:default_optimization" ]
@@ -152,13 +148,13 @@ source_set("zlib_inflate_chunk_simd") {
         "contrib/optimizations/inflate.c",
       ]
 
-      # TODO(772870) back off from -O3 while investigating Android
-      # One perf bot PNG decode regression.
-      # if (!is_debug) {
-      #  # Use optimize_speed (-O3) to output the _smallest_ code.
-      #  configs -= [ "//build/config/compiler:default_optimization" ]
-      #  configs += [ "//build/config/compiler:optimize_speed" ]
-      # }
+      if (!is_debug) {
+        # Here we trade better performance on newer/bigger ARMv8 cores
+        # for less perf on ARMv7. For details, check:
+        # https://bugs.chromium.org/p/chromium/issues/detail?id=772870#c40
+        configs -= [ "//build/config/compiler:default_optimization" ]
+        configs += [ "//build/config/compiler:optimize_speed" ]
+      }
     }
   }
 
@@ -283,6 +279,7 @@ static_library("zlib") {
 
       deps += [ ":zlib_inflate_chunk_simd" ]
       sources -= [ "inflate.c" ]
+      sources += [ "contrib/optimizations/slide_hash_neon.h" ]
     }
   }
 
@@ -365,6 +362,5 @@ executable("zlib_bench") {
 
   deps = [
     ":zlib",
-    "//build/config:exe_and_shlib_deps",
   ]
 }

@@ -40,9 +40,6 @@ group("jingle_deps") {
 }
 
 static_library("webrtc") {
-  # TODO(jschuh): crbug.com/167187 fix size_t to int truncations.
-  configs += [ "//build/config/compiler:no_size_t_to_int_warning" ]
-
   public_deps = [
     ":jingle_deps",
 
@@ -79,8 +76,12 @@ static_library("webrtc") {
     # Otherwise, we just add the field_trial which redirects to base and
     # runtime_enabled_features which redirects to content/public/common.
     sources = [
-      "field_trial.cc",
       "runtime_enabled_features.cc",
+    ]
+    deps += [
+      ":field_trial",
+      "//base",
+      "//third_party/webrtc/system_wrappers:runtime_enabled_features_api",
     ]
   }
 
@@ -111,7 +112,29 @@ static_library("init_webrtc") {
     ":libjingle_webrtc_common",
   ]
   deps = [
+    ":metrics",
     ":task_queue_impl",
+    "//base",
+    "//third_party/webrtc/rtc_base",
+    "//third_party/webrtc/system_wrappers",
+  ]
+}
+
+static_library("metrics") {
+  sources = [
+    "metrics.cc",
+  ]
+  deps = [
+    "//base",
+  ]
+}
+
+static_library("field_trial") {
+  sources = [
+    "field_trial.cc",
+  ]
+  deps = [
+    "//base",
   ]
 }
 
@@ -143,6 +166,8 @@ source_set("task_queue_impl") {
     "rtc_base/task_queue.cc",
   ]
   deps = [
+    "//base",
+    "//third_party/webrtc/rtc_base:refcount",
     "//third_party/webrtc/rtc_base:rtc_task_queue_api",
   ]
 }

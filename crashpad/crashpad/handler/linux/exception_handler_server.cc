@@ -126,8 +126,10 @@ class PtraceStrategyDeciderImpl : public PtraceStrategyDecider {
   Strategy ChooseStrategy(int sock, const ucred& client_credentials) override {
     switch (GetPtraceScope()) {
       case PtraceScope::kClassic:
-        return getuid() == client_credentials.uid ? Strategy::kDirectPtrace
-                                                  : Strategy::kForkBroker;
+        if (getuid() == client_credentials.uid) {
+          return Strategy::kDirectPtrace;
+        }
+        return TryForkingBroker(sock);
 
       case PtraceScope::kRestricted:
         if (!SendMessageToClient(sock,
@@ -143,7 +145,7 @@ class PtraceStrategyDeciderImpl : public PtraceStrategyDecider {
         if (status != 0) {
           errno = status;
           PLOG(ERROR) << "Handler Client SetPtracer";
-          return Strategy::kForkBroker;
+          return TryForkingBroker(sock);
         }
         return Strategy::kDirectPtrace;
 
@@ -162,6 +164,27 @@ class PtraceStrategyDeciderImpl : public PtraceStrategyDecider {
     }
 
     DCHECK(false);
+    return Strategy::kError;
+  }
+
+ private:
+  static Strategy TryForkingBroker(int client_sock) {
+    if (!SendMessageToClient(client_sock,
+                             ServerToClientMessage::kTypeForkBroker)) {
+      return Strategy::kError;
+    }
+
+    Errno status;
+    if (!LoggingReadFileExactly(client_sock, &status, sizeof(status))) {
+      return Strategy::kError;
+    }
+
+    if (status != 0) {
+      errno = status;
+      PLOG(ERROR) << "Handler Client ForkBroker";
+      return Strategy::kNoPtrace;
+    }
+    return Strategy::kUseBroker;
   }
 };
 
@@ -284,11 +307,24 @@ void ExceptionHandlerServer::HandleEvent(Event* event, uint32_t event_type) {
 }
 
 bool ExceptionHandlerServer::InstallClientSocket(ScopedFileHandle socket) {
-  int optval = 1;
+  // The handler may not have permission to set SO_PASSCRED on the socket, but
+  // it doesn't need to if the client has already set it.
+  // https://bugs.chromium.org/p/crashpad/issues/detail?id=252
+  int optval;
   socklen_t optlen = sizeof(optval);
-  if (setsockopt(socket.get(), SOL_SOCKET, SO_PASSCRED, &optval, optlen) != 0) {
-    PLOG(ERROR) << "setsockopt";
+  if (getsockopt(socket.get(), SOL_SOCKET, SO_PASSCRED, &optval, &optlen) !=
+      0) {
+    PLOG(ERROR) << "getsockopt";
     return false;
+  }
+  if (!optval) {
+    optval = 1;
+    optlen = sizeof(optval);
+    if (setsockopt(socket.get(), SOL_SOCKET, SO_PASSCRED, &optval, optlen) !=
+        0) {
+      PLOG(ERROR) << "setsockopt";
+      return false;
+    }
   }
 
   auto event = std::make_unique<Event>();
@@ -348,7 +384,7 @@ bool ExceptionHandlerServer::ReceiveClientMessage(Event* event) {
   msg.msg_controllen = sizeof(cmsg_buf);
   msg.msg_flags = 0;
 
-  int res = recvmsg(event->fd.get(), &msg, 0);
+  int res = HANDLE_EINTR(recvmsg(event->fd.get(), &msg, 0));
   if (res < 0) {
     PLOG(ERROR) << "recvmsg";
     return false;
@@ -423,20 +459,12 @@ bool ExceptionHandlerServer::HandleCrashDumpRequest(
                                  ServerToClientMessage::kTypeCrashDumpFailed);
 
     case PtraceStrategyDecider::Strategy::kDirectPtrace:
-      delegate_->HandleException(client_process_id,
-                                 client_info.exception_information_address);
+      delegate_->HandleException(client_process_id, client_info);
       break;
 
-    case PtraceStrategyDecider::Strategy::kForkBroker:
-      if (!SendMessageToClient(client_sock,
-                               ServerToClientMessage::kTypeForkBroker)) {
-        return false;
-      }
-
+    case PtraceStrategyDecider::Strategy::kUseBroker:
       delegate_->HandleExceptionWithBroker(
-          client_process_id,
-          client_info.exception_information_address,
-          client_sock);
+          client_process_id, client_info, client_sock);
       break;
   }
 
