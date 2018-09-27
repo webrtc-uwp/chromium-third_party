@@ -15,8 +15,10 @@ declare_args() {
 
 if (!use_system_libdrm) {
   config("libdrm_config") {
-    # Define _GNU_SOURCE for vasprintf use in xf86drm.c
-    defines = [ "_GNU_SOURCE" ]
+    # TODO(thomasanderson): Remove this hack once
+    # https://patchwork.kernel.org/patch/10545295/ lands.
+    defines = [ "typeof(x)=__typeof__(x)" ]
+
     include_dirs = [
       "src",
       "src/include",
@@ -31,6 +33,10 @@ if (!use_system_libdrm) {
     if (is_clang) {
       cflags += [ "-Wno-enum-conversion" ]
     }
+  }
+
+  config("libdrm_exynos_include_config") {
+    include_dirs = [ "//third_party/libdrm/src/exynos" ]
   }
 
   static_library("libdrm") {
@@ -55,6 +61,32 @@ if (!use_system_libdrm) {
     ]
 
     public_configs = [ ":libdrm_config" ]
+  }
+
+  executable("modetest") {
+    sources = [
+      "src/tests/modetest/buffers.c",
+      "src/tests/modetest/buffers.h",
+      "src/tests/modetest/cursor.c",
+      "src/tests/modetest/cursor.h",
+      "src/tests/modetest/modetest.c",
+      "src/tests/util/common.h",
+      "src/tests/util/format.c",
+      "src/tests/util/format.h",
+      "src/tests/util/kms.c",
+      "src/tests/util/kms.h",
+      "src/tests/util/pattern.c",
+      "src/tests/util/pattern.h",
+    ]
+
+    include_dirs = [
+      "src/tests",
+      "src/tests/modetest",
+    ]
+
+    deps = [
+      ":libdrm",
+    ]
   }
 }
 

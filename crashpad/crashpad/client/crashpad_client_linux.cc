@@ -24,9 +24,11 @@
 
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
+#include "client/client_argv_handling.h"
 #include "util/file/file_io.h"
 #include "util/linux/exception_handler_client.h"
 #include "util/linux/exception_information.h"
+#include "util/linux/scoped_pr_set_ptracer.h"
 #include "util/misc/from_pointer_cast.h"
 #include "util/posix/double_fork_and_exec.h"
 #include "util/posix/signals.h"
@@ -34,11 +36,6 @@
 namespace crashpad {
 
 namespace {
-
-std::string FormatArgumentString(const std::string& name,
-                                 const std::string& value) {
-  return base::StringPrintf("--%s=%s", name.c_str(), value.c_str());
-}
 
 std::string FormatArgumentInt(const std::string& name, int value) {
   return base::StringPrintf("--%s=%d", name.c_str(), value);
@@ -48,66 +45,128 @@ std::string FormatArgumentAddress(const std::string& name, void* addr) {
   return base::StringPrintf("--%s=%p", name.c_str(), addr);
 }
 
-void BuildHandlerArgvStrings(
-    const base::FilePath& handler,
+#if defined(OS_ANDROID)
+
+std::vector<std::string> BuildAppProcessArgs(
+    const std::string& class_name,
     const base::FilePath& database,
     const base::FilePath& metrics_dir,
     const std::string& url,
     const std::map<std::string, std::string>& annotations,
     const std::vector<std::string>& arguments,
-    std::vector<std::string>* argv_strings) {
-  argv_strings->clear();
+    int socket) {
+  std::vector<std::string> argv;
+#if defined(ARCH_CPU_64_BIT)
+  argv.push_back("/system/bin/app_process64");
+#else
+  argv.push_back("/system/bin/app_process32");
+#endif
+  argv.push_back("/system/bin");
+  argv.push_back("--application");
+  argv.push_back(class_name);
 
-  argv_strings->push_back(handler.value());
-  for (const auto& argument : arguments) {
-    argv_strings->push_back(argument);
+  std::vector<std::string> handler_argv = BuildHandlerArgvStrings(
+      base::FilePath(), database, metrics_dir, url, annotations, arguments);
+
+  if (socket != kInvalidFileHandle) {
+    handler_argv.push_back(FormatArgumentInt("initial-client-fd", socket));
   }
 
-  if (!database.empty()) {
-    argv_strings->push_back(FormatArgumentString("database", database.value()));
-  }
-
-  if (!metrics_dir.empty()) {
-    argv_strings->push_back(
-        FormatArgumentString("metrics-dir", metrics_dir.value()));
-  }
-
-  if (!url.empty()) {
-    argv_strings->push_back(FormatArgumentString("url", url));
-  }
-
-  for (const auto& kv : annotations) {
-    argv_strings->push_back(
-        FormatArgumentString("annotation", kv.first + '=' + kv.second));
-  }
+  argv.insert(argv.end(), handler_argv.begin() + 1, handler_argv.end());
+  return argv;
 }
 
-void ConvertArgvStrings(const std::vector<std::string> argv_strings,
-                        std::vector<const char*>* argv) {
-  argv->clear();
-  argv->reserve(argv_strings.size() + 1);
-  for (const auto& arg : argv_strings) {
-    argv->push_back(arg.c_str());
+#endif  // OS_ANDROID
+
+class SignalHandler {
+ public:
+  virtual void HandleCrashFatal(int signo,
+                                siginfo_t* siginfo,
+                                void* context) = 0;
+  virtual bool HandleCrashNonFatal(int signo,
+                                   siginfo_t* siginfo,
+                                   void* context) = 0;
+
+  void SetFirstChanceHandler(CrashpadClient::FirstChanceHandler handler) {
+    first_chance_handler_ = handler;
   }
-  argv->push_back(nullptr);
-}
+
+ protected:
+  SignalHandler() = default;
+  ~SignalHandler() = default;
+
+  CrashpadClient::FirstChanceHandler first_chance_handler_ = nullptr;
+};
 
 // Launches a single use handler to snapshot this process.
-class LaunchAtCrashHandler {
+class LaunchAtCrashHandler : public SignalHandler {
  public:
   static LaunchAtCrashHandler* Get() {
     static LaunchAtCrashHandler* instance = new LaunchAtCrashHandler();
     return instance;
   }
 
-  bool Initialize(std::vector<std::string>* argv_in) {
+  bool Initialize(std::vector<std::string>* argv_in,
+                  const std::vector<std::string>* envp) {
     argv_strings_.swap(*argv_in);
+
+    if (envp) {
+      envp_strings_ = *envp;
+      StringVectorToCStringVector(envp_strings_, &envp_);
+      set_envp_ = true;
+    }
 
     argv_strings_.push_back(FormatArgumentAddress("trace-parent-with-exception",
                                                   &exception_information_));
 
-    ConvertArgvStrings(argv_strings_, &argv_);
+    StringVectorToCStringVector(argv_strings_, &argv_);
     return Signals::InstallCrashHandlers(HandleCrash, 0, nullptr);
+  }
+
+  bool HandleCrashNonFatal(int signo,
+                           siginfo_t* siginfo,
+                           void* context) override {
+    if (first_chance_handler_ &&
+        first_chance_handler_(
+            signo, siginfo, static_cast<ucontext_t*>(context))) {
+      return true;
+    }
+
+    exception_information_.siginfo_address =
+        FromPointerCast<decltype(exception_information_.siginfo_address)>(
+            siginfo);
+    exception_information_.context_address =
+        FromPointerCast<decltype(exception_information_.context_address)>(
+            context);
+    exception_information_.thread_id = syscall(SYS_gettid);
+
+    ScopedPrSetPtracer set_ptracer(getpid(), /* may_log= */ false);
+
+    pid_t pid = fork();
+    if (pid < 0) {
+      return false;
+    }
+    if (pid == 0) {
+      if (set_envp_) {
+        execve(argv_[0],
+               const_cast<char* const*>(argv_.data()),
+               const_cast<char* const*>(envp_.data()));
+      } else {
+        execv(argv_[0], const_cast<char* const*>(argv_.data()));
+      }
+      _exit(EXIT_FAILURE);
+    }
+
+    int status;
+    waitpid(pid, &status, 0);
+    return false;
+  }
+
+  void HandleCrashFatal(int signo, siginfo_t* siginfo, void* context) override {
+    if (HandleCrashNonFatal(signo, siginfo, context)) {
+      return;
+    }
+    Signals::RestoreHandlerAndReraiseSignalOnReturn(siginfo, nullptr);
   }
 
  private:
@@ -117,35 +176,23 @@ class LaunchAtCrashHandler {
 
   static void HandleCrash(int signo, siginfo_t* siginfo, void* context) {
     auto state = Get();
-    auto exception_information = &state->exception_information_;
-
-    exception_information->siginfo_address =
-        FromPointerCast<decltype(exception_information->siginfo_address)>(
-            siginfo);
-    exception_information->context_address =
-        FromPointerCast<decltype(exception_information->context_address)>(
-            context);
-    exception_information->thread_id = syscall(SYS_gettid);
-
-    pid_t pid = fork();
-    if (pid < 0) {
-      return;
-    }
-    if (pid == 0) {
-      execv(state->argv_[0], const_cast<char* const*>(state->argv_.data()));
-      return;
-    }
-
-    int status;
-    waitpid(pid, &status, 0);
+    state->HandleCrashFatal(signo, siginfo, context);
   }
 
   std::vector<std::string> argv_strings_;
   std::vector<const char*> argv_;
+  std::vector<std::string> envp_strings_;
+  std::vector<const char*> envp_;
+  bool set_envp_ = false;
   ExceptionInformation exception_information_;
 
   DISALLOW_COPY_AND_ASSIGN(LaunchAtCrashHandler);
 };
+
+// A pointer to the currently installed crash signal handler. This allows
+// the static method CrashpadClient::DumpWithoutCrashing to simulate a crash
+// using the currently configured crash handling strategy.
+static SignalHandler* g_crash_handler;
 
 }  // namespace
 
@@ -169,6 +216,52 @@ bool CrashpadClient::StartHandler(
   return false;
 }
 
+#if defined(OS_ANDROID)
+
+// static
+bool CrashpadClient::StartJavaHandlerAtCrash(
+    const std::string& class_name,
+    const std::vector<std::string>* env,
+    const base::FilePath& database,
+    const base::FilePath& metrics_dir,
+    const std::string& url,
+    const std::map<std::string, std::string>& annotations,
+    const std::vector<std::string>& arguments) {
+  std::vector<std::string> argv = BuildAppProcessArgs(class_name,
+                                                      database,
+                                                      metrics_dir,
+                                                      url,
+                                                      annotations,
+                                                      arguments,
+                                                      kInvalidFileHandle);
+
+  auto signal_handler = LaunchAtCrashHandler::Get();
+  if (signal_handler->Initialize(&argv, env)) {
+    DCHECK(!g_crash_handler);
+    g_crash_handler = signal_handler;
+    return true;
+  }
+  return false;
+}
+
+// static
+bool CrashpadClient::StartJavaHandlerForClient(
+    const std::string& class_name,
+    const std::vector<std::string>* env,
+    const base::FilePath& database,
+    const base::FilePath& metrics_dir,
+    const std::string& url,
+    const std::map<std::string, std::string>& annotations,
+    const std::vector<std::string>& arguments,
+    int socket) {
+  std::vector<std::string> argv = BuildAppProcessArgs(
+      class_name, database, metrics_dir, url, annotations, arguments, socket);
+  return DoubleForkAndExec(argv, env, socket, false, nullptr);
+}
+
+#endif
+
+// static
 bool CrashpadClient::StartHandlerAtCrash(
     const base::FilePath& handler,
     const base::FilePath& database,
@@ -176,14 +269,19 @@ bool CrashpadClient::StartHandlerAtCrash(
     const std::string& url,
     const std::map<std::string, std::string>& annotations,
     const std::vector<std::string>& arguments) {
-  std::vector<std::string> argv;
-  BuildHandlerArgvStrings(
-      handler, database, metrics_dir, url, annotations, arguments, &argv);
+  std::vector<std::string> argv = BuildHandlerArgvStrings(
+      handler, database, metrics_dir, url, annotations, arguments);
 
   auto signal_handler = LaunchAtCrashHandler::Get();
-  return signal_handler->Initialize(&argv);
+  if (signal_handler->Initialize(&argv, nullptr)) {
+    DCHECK(!g_crash_handler);
+    g_crash_handler = signal_handler;
+    return true;
+  }
+  return false;
 }
 
+// static
 bool CrashpadClient::StartHandlerForClient(
     const base::FilePath& handler,
     const base::FilePath& database,
@@ -192,13 +290,39 @@ bool CrashpadClient::StartHandlerForClient(
     const std::map<std::string, std::string>& annotations,
     const std::vector<std::string>& arguments,
     int socket) {
-  std::vector<std::string> argv;
-  BuildHandlerArgvStrings(
-      handler, database, metrics_dir, url, annotations, arguments, &argv);
+  std::vector<std::string> argv = BuildHandlerArgvStrings(
+      handler, database, metrics_dir, url, annotations, arguments);
 
-  argv.push_back(FormatArgumentInt("initial-client", socket));
+  argv.push_back(FormatArgumentInt("initial-client-fd", socket));
 
-  return DoubleForkAndExec(argv, socket, true, nullptr);
+  return DoubleForkAndExec(argv, nullptr, socket, true, nullptr);
+}
+
+// static
+void CrashpadClient::DumpWithoutCrash(NativeCPUContext* context) {
+  DCHECK(g_crash_handler);
+
+#if defined(ARCH_CPU_ARMEL)
+  memset(context->uc_regspace, 0, sizeof(context->uc_regspace));
+#elif defined(ARCH_CPU_ARM64)
+  memset(context->uc_mcontext.__reserved,
+         0,
+         sizeof(context->uc_mcontext.__reserved));
+#endif
+
+  siginfo_t siginfo;
+  siginfo.si_signo = Signals::kSimulatedSigno;
+  siginfo.si_errno = 0;
+  siginfo.si_code = 0;
+  g_crash_handler->HandleCrashNonFatal(
+      siginfo.si_signo, &siginfo, reinterpret_cast<void*>(context));
+}
+
+// static
+void CrashpadClient::SetFirstChanceExceptionHandler(
+    FirstChanceHandler handler) {
+  DCHECK(g_crash_handler);
+  g_crash_handler->SetFirstChanceHandler(handler);
 }
 
 }  // namespace crashpad

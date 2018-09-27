@@ -89,8 +89,15 @@ class Multiprocess {
   //! \param[in] code If \a reason is TerminationReason::kTerminationNormal,
   //!     this is the expected exit status of the child. If \a reason is
   //!     TerminationReason::kTerminationSignal, this is the signal that is
-  //!     expected to kill the child.
+  //!     expected to kill the child. On Linux platforms, SIG_DFL will be
+  //!     installed for \a code in the child process.
   void SetExpectedChildTermination(TerminationReason reason, int code);
+
+#if !defined(OS_WIN)
+  //! \brief Sets termination reason and code appropriately for a child that
+  //!     terminates via `__builtin_trap()`.
+  void SetExpectedChildTerminationBuiltinTrap();
+#endif  // !OS_WIN
 
  protected:
   ~Multiprocess();

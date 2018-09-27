@@ -27,17 +27,18 @@
 #include "test/test_paths.h"
 #include "util/file/file_io.h"
 #include "util/misc/address_types.h"
+#include "util/misc/elf_note_types.h"
 #include "util/misc/from_pointer_cast.h"
 #include "util/process/process_memory_native.h"
 
 #if defined(OS_FUCHSIA)
-
-#include <zircon/syscalls.h>
+#include <lib/zx/process.h>
 
 #include "base/fuchsia/fuchsia_logging.h"
 
 #elif defined(OS_LINUX) || defined(OS_ANDROID)
 
+#include "test/linux/fake_ptrace_connection.h"
 #include "util/linux/auxiliary_vector.h"
 #include "util/linux/memory_map.h"
 
@@ -59,15 +60,12 @@ namespace {
 
 #if defined(OS_FUCHSIA)
 
-void LocateExecutable(ProcessType process,
+void LocateExecutable(const ProcessType& process,
                       ProcessMemory* memory,
-                      bool is_64_bit,
                       VMAddress* elf_address) {
   uintptr_t debug_address;
-  zx_status_t status = zx_object_get_property(process,
-                                              ZX_PROP_PROCESS_DEBUG_ADDR,
-                                              &debug_address,
-                                              sizeof(debug_address));
+  zx_status_t status = process->get_property(
+      ZX_PROP_PROCESS_DEBUG_ADDR, &debug_address, sizeof(debug_address));
   ASSERT_EQ(status, ZX_OK)
       << "zx_object_get_property: ZX_PROP_PROCESS_DEBUG_ADDR";
   // Can be 0 if requested before the loader has loaded anything.
@@ -89,24 +87,23 @@ void LocateExecutable(ProcessType process,
 
 #elif defined(OS_LINUX) || defined(OS_ANDROID)
 
-void LocateExecutable(ProcessType process,
+void LocateExecutable(PtraceConnection* connection,
                       ProcessMemory* memory,
-                      bool is_64_bit,
                       VMAddress* elf_address) {
   AuxiliaryVector aux;
-  ASSERT_TRUE(aux.Initialize(process, is_64_bit));
+  ASSERT_TRUE(aux.Initialize(connection));
 
   VMAddress phdrs;
   ASSERT_TRUE(aux.GetValue(AT_PHDR, &phdrs));
 
   MemoryMap memory_map;
-  ASSERT_TRUE(memory_map.Initialize(process));
+  ASSERT_TRUE(memory_map.Initialize(connection));
   const MemoryMap::Mapping* phdr_mapping = memory_map.FindMapping(phdrs);
   ASSERT_TRUE(phdr_mapping);
-  const MemoryMap::Mapping* exe_mapping =
-      memory_map.FindFileMmapStart(*phdr_mapping);
-  ASSERT_TRUE(exe_mapping);
-  *elf_address = exe_mapping->range.Base();
+  std::vector<const MemoryMap::Mapping*> possible_mappings =
+      memory_map.FindFilePossibleMmapStarts(*phdr_mapping);
+  ASSERT_EQ(possible_mappings.size(), 1u);
+  *elf_address = possible_mappings[0]->range.Base();
 }
 
 #endif  // OS_FUCHSIA
@@ -138,7 +135,13 @@ void ReadThisExecutableInTarget(ProcessType process,
   ASSERT_TRUE(range.Initialize(&memory, am_64_bit));
 
   VMAddress elf_address;
-  LocateExecutable(process, &memory, am_64_bit, &elf_address);
+#if defined(OS_LINUX) || defined(OS_ANDROID)
+  FakePtraceConnection connection;
+  ASSERT_TRUE(connection.Initialize(process));
+  LocateExecutable(&connection, &memory, &elf_address);
+#elif defined(OS_FUCHSIA)
+  LocateExecutable(process, &memory, &elf_address);
+#endif
   ASSERT_NO_FATAL_FAILURE();
 
   ElfImageReader reader;
@@ -163,14 +166,14 @@ void ReadThisExecutableInTarget(ProcessType process,
             ElfImageReader::NoteReader::Result::kNoMoreNotes);
 
   // Find the note defined in elf_image_reader_test_note.S.
-  constexpr char kCrashpadNoteName[] = "Crashpad";
-  constexpr ElfImageReader::NoteReader::NoteType kCrashpadNoteType = 1;
   constexpr uint32_t kCrashpadNoteDesc = 42;
-  notes = reader.NotesWithNameAndType(kCrashpadNoteName, kCrashpadNoteType, -1);
+  notes = reader.NotesWithNameAndType(
+      CRASHPAD_ELF_NOTE_NAME, CRASHPAD_ELF_NOTE_TYPE_SNAPSHOT_TEST, -1);
   ASSERT_EQ(notes->NextNote(&note_name, &note_type, &note_desc),
             ElfImageReader::NoteReader::Result::kSuccess);
-  EXPECT_EQ(note_name, kCrashpadNoteName);
-  EXPECT_EQ(note_type, kCrashpadNoteType);
+  EXPECT_EQ(note_name, CRASHPAD_ELF_NOTE_NAME);
+  EXPECT_EQ(note_type,
+            implicit_cast<unsigned int>(CRASHPAD_ELF_NOTE_TYPE_SNAPSHOT_TEST));
   EXPECT_EQ(note_desc.size(), sizeof(kCrashpadNoteDesc));
   EXPECT_EQ(*reinterpret_cast<decltype(kCrashpadNoteDesc)*>(&note_desc[0]),
             kCrashpadNoteDesc);
