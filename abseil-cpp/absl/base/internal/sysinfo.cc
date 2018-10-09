@@ -76,6 +76,7 @@ static int GetNumCPUs() {
 #if defined(_WIN32)
 
 static double GetNominalCPUFrequency() {
+#ifndef WINUWP
   DWORD data;
   DWORD data_size = sizeof(data);
   #pragma comment(lib, "shlwapi.lib")  // For SHGetValue().
@@ -85,6 +86,7 @@ static double GetNominalCPUFrequency() {
                       "~MHz", nullptr, &data, &data_size))) {
     return data * 1e6;  // Value is MHz.
   }
+#endif // WINUWP
   return 1.0;
 }
 

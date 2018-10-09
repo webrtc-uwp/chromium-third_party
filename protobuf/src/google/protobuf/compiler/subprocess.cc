@@ -98,6 +98,7 @@ void Subprocess::Start(const string& program, SearchMode search_mode) {
     GOOGLE_LOG(FATAL) << "CreatePipe: " << Win32ErrorMessage(GetLastError());
   }
 
+#ifndef WINUWP
   // Make child side of the pipes inheritable.
   if (!SetHandleInformation(stdin_pipe_read,
                             HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT)) {
@@ -109,6 +110,11 @@ void Subprocess::Start(const string& program, SearchMode search_mode) {
     GOOGLE_LOG(FATAL) << "SetHandleInformation: "
                       << Win32ErrorMessage(GetLastError());
   }
+#else
+#ifndef STARTF_USESTDHANDLES
+#define STARTF_USESTDHANDLES 0x00000100
+#endif //ndef STARTF_USESTDHANDLES
+#endif //ndef WINUWP
 
   // Setup STARTUPINFO to redirect handles.
   STARTUPINFOA startup_info;
