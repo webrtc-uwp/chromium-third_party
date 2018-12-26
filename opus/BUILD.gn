@@ -16,7 +16,7 @@ use_opus_arm_optimization =
 # If OPUS Run Time CPU Detections (RTCD) shall be used.
 # Based on the conditions in celt/arm/armcpu.c:
 # defined(_MSC_VER) || defined(__linux__).
-use_opus_rtcd = (current_cpu == "arm" || current_cpu == "arm64") && (is_win || is_android || is_linux)
+use_opus_rtcd = current_cpu == "arm" && (is_win || is_android || is_linux)
 
 config("opus_config") {
   include_dirs = [ "src/include" ]
@@ -25,7 +25,7 @@ config("opus_config") {
     defines = [ "OPUS_FIXED_POINT" ]
   }
   
-  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+  if (current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
     defines += [ "USE_MSVS_ARM_INTRINCICS" ]
   }
 }
@@ -49,7 +49,7 @@ config("opus_test_config") {
 
 if (use_opus_rtcd) {
   
-  if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+  if ((current_cpu == "arm") && current_os == "winuwp" && target_os == "winuwp") {
     action("convert_rtcd_assembler_for_winuwp") {
       script = "//webrtc/build/Win_ARM_Tools/run_arm_asm_compiler.py"
       outputs = [
@@ -66,9 +66,11 @@ if (use_opus_rtcd) {
         "-o",
         rebase_path("$target_gen_dir/celt_pitch_xcorr_arm.asm", root_build_dir),
         "-p",
-        "environment.store_arm",
+        "environment.store_" + current_cpu,
         "-l",
         "../../third_party/opus/",
+        "-a",
+        current_cpu
       ]
     }
   }
@@ -401,7 +403,7 @@ static_library("opus") {
 
     if (use_opus_rtcd) {
     
-      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp") {
+      if (current_os == "winuwp" && target_os == "winuwp") {
         sources += get_target_outputs(":convert_rtcd_assembler_for_winuwp")
       } else {
         sources += [ "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", ]
@@ -422,7 +424,7 @@ static_library("opus") {
         "OPUS_HAVE_RTCD",
       ]
 
-      if ((current_cpu == "arm" || current_cpu == "arm64") && current_os == "winuwp" && target_os == "winuwp")  {
+      if (current_os == "winuwp" && target_os == "winuwp")  {
         deps = [
           ":convert_rtcd_assembler_for_winuwp",
         ]
@@ -431,36 +433,36 @@ static_library("opus") {
           ":convert_rtcd_assembler",
         ]
       }
+    }
 
-      if (arm_use_neon) {
-        sources += [
-          "src/celt/arm/celt_neon_intr.c",
-          "src/celt/arm/pitch_neon_intr.c",
-          "src/silk/arm/LPC_inv_pred_gain_arm.h",
-          "src/silk/arm/LPC_inv_pred_gain_neon_intr.c",
-          "src/silk/arm/NSQ_del_dec_arm.h",
-          "src/silk/arm/NSQ_del_dec_neon_intr.c",
-          "src/silk/arm/NSQ_neon.c",
-          "src/silk/arm/NSQ_neon.h",
-          "src/silk/arm/biquad_alt_arm.h",
-          "src/silk/arm/biquad_alt_neon_intr.c",
-          "src/silk/fixed/arm/warped_autocorrelation_FIX_arm.h",
-          "src/silk/fixed/arm/warped_autocorrelation_FIX_neon_intr.c",
-        ]
+    if (arm_use_neon) {
+      sources += [
+        "src/celt/arm/celt_neon_intr.c",
+        "src/celt/arm/pitch_neon_intr.c",
+        "src/silk/arm/LPC_inv_pred_gain_arm.h",
+        "src/silk/arm/LPC_inv_pred_gain_neon_intr.c",
+        "src/silk/arm/NSQ_del_dec_arm.h",
+        "src/silk/arm/NSQ_del_dec_neon_intr.c",
+        "src/silk/arm/NSQ_neon.c",
+        "src/silk/arm/NSQ_neon.h",
+        "src/silk/arm/biquad_alt_arm.h",
+        "src/silk/arm/biquad_alt_neon_intr.c",
+        "src/silk/fixed/arm/warped_autocorrelation_FIX_arm.h",
+        "src/silk/fixed/arm/warped_autocorrelation_FIX_neon_intr.c",
+      ]
 
-        defines += [
-          "OPUS_ARM_MAY_HAVE_NEON",
-          "OPUS_ARM_MAY_HAVE_NEON_INTR",
-        ]
-      }
+      defines += [
+        "OPUS_ARM_MAY_HAVE_NEON",
+        "OPUS_ARM_MAY_HAVE_NEON_INTR",
+      ]
+    }
 
-      if (is_ios && current_cpu == "arm64") {
+    if (is_ios && current_cpu == "arm64") {
       # Runtime detection of CPU features not available on iOS.
-        defines += [
-          "OPUS_ARM_PRESUME_NEON_INTR",
-          "OPUS_ARM_PRESUME_AARCH64_NEON_INTR",
-        ]
-      }
+      defines += [
+        "OPUS_ARM_PRESUME_NEON_INTR",
+        "OPUS_ARM_PRESUME_AARCH64_NEON_INTR",
+      ]
     }
   }
 }
