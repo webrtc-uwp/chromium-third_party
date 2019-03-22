@@ -51,26 +51,19 @@ if (use_opus_rtcd) {
   
   if ((current_cpu == "arm") && current_os == "winuwp" && target_os == "winuwp") {
     action("convert_rtcd_assembler_for_winuwp") {
-      script = "//webrtc/build/Win_ARM_Tools/run_arm_asm_compiler.py"
+      script = "//third_party/libvpx/run_perl.py"
       outputs = [
         "$target_gen_dir/celt_pitch_xcorr_arm.asm",
       ]
-      scriptPl =
-            "//third_party/opus/src/celt/arm/ads2armasm_msvs.pl"
+
       
       args = [
         "-s",
-        rebase_path(scriptPl, root_build_dir),
+        "../../third_party/opus/src/celt/arm/ads2armasm_msvs.pl",
         "-i",
         "../../third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s",
         "-o",
         rebase_path("$target_gen_dir/celt_pitch_xcorr_arm.asm", root_build_dir),
-        "-p",
-        "environment.store_" + current_cpu,
-        "-l",
-        "../../third_party/opus/",
-        "-a",
-        current_cpu
       ]
     }
   }
