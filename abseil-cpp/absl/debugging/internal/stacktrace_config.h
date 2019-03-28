@@ -24,7 +24,7 @@
 #if defined(ABSL_STACKTRACE_INL_HEADER)
 #error ABSL_STACKTRACE_INL_HEADER cannot be directly set
 
-#elif defined(_WIN32)
+#elif defined(_WIN32) && !defined(WINUWP)
 #define ABSL_STACKTRACE_INL_HEADER \
     "absl/debugging/internal/stacktrace_win32-inl.inc"
 
