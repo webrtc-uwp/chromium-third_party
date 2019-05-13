@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//      https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -875,6 +875,163 @@ TEST(TypeTraitsTest, TestResultOf) {
   EXPECT_EQ(TypeEnum::B, GetTypeExt(Wrap<TypeB>()));
   EXPECT_EQ(TypeEnum::C, GetTypeExt(Wrap<TypeC>()));
   EXPECT_EQ(TypeEnum::D, GetTypeExt(Wrap<TypeD>()));
+}
+
+template <typename T>
+bool TestCopyAssign() {
+  return absl::is_copy_assignable<T>::value ==
+         std::is_copy_assignable<T>::value;
+}
+
+TEST(TypeTraitsTest, IsCopyAssignable) {
+  EXPECT_TRUE(TestCopyAssign<int>());
+  EXPECT_TRUE(TestCopyAssign<int&>());
+  EXPECT_TRUE(TestCopyAssign<int&&>());
+
+  struct S {};
+  EXPECT_TRUE(TestCopyAssign<S>());
+  EXPECT_TRUE(TestCopyAssign<S&>());
+  EXPECT_TRUE(TestCopyAssign<S&&>());
+
+  class C {
+   public:
+    explicit C(C* c) : c_(c) {}
+    ~C() { delete c_; }
+
+   private:
+    C* c_;
+  };
+  EXPECT_TRUE(TestCopyAssign<C>());
+  EXPECT_TRUE(TestCopyAssign<C&>());
+  EXPECT_TRUE(TestCopyAssign<C&&>());
+
+  // Reason for ifndef: add_lvalue_reference<T> in libc++ breaks for these cases
+#ifndef _LIBCPP_VERSION
+  EXPECT_TRUE(TestCopyAssign<int()>());
+  EXPECT_TRUE(TestCopyAssign<int(int) const>());
+  EXPECT_TRUE(TestCopyAssign<int(...) volatile&>());
+  EXPECT_TRUE(TestCopyAssign<int(int, ...) const volatile&&>());
+#endif  // _LIBCPP_VERSION
+}
+
+template <typename T>
+bool TestMoveAssign() {
+  return absl::is_move_assignable<T>::value ==
+         std::is_move_assignable<T>::value;
+}
+
+TEST(TypeTraitsTest, IsMoveAssignable) {
+  EXPECT_TRUE(TestMoveAssign<int>());
+  EXPECT_TRUE(TestMoveAssign<int&>());
+  EXPECT_TRUE(TestMoveAssign<int&&>());
+
+  struct S {};
+  EXPECT_TRUE(TestMoveAssign<S>());
+  EXPECT_TRUE(TestMoveAssign<S&>());
+  EXPECT_TRUE(TestMoveAssign<S&&>());
+
+  class C {
+   public:
+    explicit C(C* c) : c_(c) {}
+    ~C() { delete c_; }
+    void operator=(const C&) = delete;
+    void operator=(C&&) = delete;
+
+   private:
+    C* c_;
+  };
+  EXPECT_TRUE(TestMoveAssign<C>());
+  EXPECT_TRUE(TestMoveAssign<C&>());
+  EXPECT_TRUE(TestMoveAssign<C&&>());
+
+  // Reason for ifndef: add_lvalue_reference<T> in libc++ breaks for these cases
+#ifndef _LIBCPP_VERSION
+  EXPECT_TRUE(TestMoveAssign<int()>());
+  EXPECT_TRUE(TestMoveAssign<int(int) const>());
+  EXPECT_TRUE(TestMoveAssign<int(...) volatile&>());
+  EXPECT_TRUE(TestMoveAssign<int(int, ...) const volatile&&>());
+#endif  // _LIBCPP_VERSION
+}
+
+namespace adl_namespace {
+
+struct DeletedSwap {
+};
+
+void swap(DeletedSwap&, DeletedSwap&) = delete;
+
+struct SpecialNoexceptSwap {
+  SpecialNoexceptSwap(SpecialNoexceptSwap&&) {}
+  SpecialNoexceptSwap& operator=(SpecialNoexceptSwap&&) { return *this; }
+  ~SpecialNoexceptSwap() = default;
+};
+
+void swap(SpecialNoexceptSwap&, SpecialNoexceptSwap&) noexcept {}
+
+}  // namespace adl_namespace
+
+TEST(TypeTraitsTest, IsSwappable) {
+  using absl::type_traits_internal::IsSwappable;
+  using absl::type_traits_internal::StdSwapIsUnconstrained;
+
+  EXPECT_TRUE(IsSwappable<int>::value);
+
+  struct S {};
+  EXPECT_TRUE(IsSwappable<S>::value);
+
+  struct NoConstruct {
+    NoConstruct(NoConstruct&&) = delete;
+    NoConstruct& operator=(NoConstruct&&) { return *this; }
+    ~NoConstruct() = default;
+  };
+
+  EXPECT_EQ(IsSwappable<NoConstruct>::value, StdSwapIsUnconstrained::value);
+  struct NoAssign {
+    NoAssign(NoAssign&&) {}
+    NoAssign& operator=(NoAssign&&) = delete;
+    ~NoAssign() = default;
+  };
+
+  EXPECT_EQ(IsSwappable<NoAssign>::value, StdSwapIsUnconstrained::value);
+
+  EXPECT_FALSE(IsSwappable<adl_namespace::DeletedSwap>::value);
+
+  EXPECT_TRUE(IsSwappable<adl_namespace::SpecialNoexceptSwap>::value);
+}
+
+TEST(TypeTraitsTest, IsNothrowSwappable) {
+  using absl::type_traits_internal::IsNothrowSwappable;
+  using absl::type_traits_internal::StdSwapIsUnconstrained;
+
+  EXPECT_TRUE(IsNothrowSwappable<int>::value);
+
+  struct NonNoexceptMoves {
+    NonNoexceptMoves(NonNoexceptMoves&&) {}
+    NonNoexceptMoves& operator=(NonNoexceptMoves&&) { return *this; }
+    ~NonNoexceptMoves() = default;
+  };
+
+  EXPECT_FALSE(IsNothrowSwappable<NonNoexceptMoves>::value);
+
+  struct NoConstruct {
+    NoConstruct(NoConstruct&&) = delete;
+    NoConstruct& operator=(NoConstruct&&) { return *this; }
+    ~NoConstruct() = default;
+  };
+
+  EXPECT_FALSE(IsNothrowSwappable<NoConstruct>::value);
+
+  struct NoAssign {
+    NoAssign(NoAssign&&) {}
+    NoAssign& operator=(NoAssign&&) = delete;
+    ~NoAssign() = default;
+  };
+
+  EXPECT_FALSE(IsNothrowSwappable<NoAssign>::value);
+
+  EXPECT_FALSE(IsNothrowSwappable<adl_namespace::DeletedSwap>::value);
+
+  EXPECT_TRUE(IsNothrowSwappable<adl_namespace::SpecialNoexceptSwap>::value);
 }
 
 }  // namespace
