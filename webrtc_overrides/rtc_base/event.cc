@@ -10,6 +10,8 @@ namespace rtc {
 
 using base::WaitableEvent;
 
+Event::Event() : Event(false, false) {}
+
 Event::Event(bool manual_reset, bool initially_signaled)
     : event_(manual_reset ? WaitableEvent::ResetPolicy::MANUAL
                           : WaitableEvent::ResetPolicy::AUTOMATIC,
@@ -26,13 +28,13 @@ void Event::Reset() {
   event_.Reset();
 }
 
-bool Event::Wait(int milliseconds) {
-  if (milliseconds == kForever) {
+bool Event::Wait(int give_up_after_ms) {
+  if (give_up_after_ms == kForever) {
     event_.Wait();
     return true;
   }
 
-  return event_.TimedWait(base::TimeDelta::FromMilliseconds(milliseconds));
+  return event_.TimedWait(base::TimeDelta::FromMilliseconds(give_up_after_ms));
 }
 
 }  // namespace rtc

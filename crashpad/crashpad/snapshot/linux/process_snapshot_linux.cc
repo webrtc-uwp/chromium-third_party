@@ -43,6 +43,7 @@ bool ProcessSnapshotLinux::Initialize(PtraceConnection* connection) {
 
   InitializeThreads();
   InitializeModules();
+  InitializeAnnotations();
 
   INITIALIZATION_STATE_SET_VALID(initialized_);
   return true;
@@ -234,6 +235,11 @@ std::vector<const MemorySnapshot*> ProcessSnapshotLinux::ExtraMemory() const {
   return std::vector<const MemorySnapshot*>();
 }
 
+const ProcessMemory* ProcessSnapshotLinux::Memory() const {
+  INITIALIZATION_STATE_DCHECK_VALID(initialized_);
+  return process_reader_.Memory();
+}
+
 void ProcessSnapshotLinux::InitializeThreads() {
   const std::vector<ProcessReaderLinux::Thread>& process_reader_threads =
       process_reader_.Threads();
@@ -258,6 +264,15 @@ void ProcessSnapshotLinux::InitializeModules() {
       modules_.push_back(std::move(module));
     }
   }
+}
+
+void ProcessSnapshotLinux::InitializeAnnotations() {
+#if defined(OS_ANDROID)
+  const std::string& abort_message = process_reader_.AbortMessage();
+  if (!abort_message.empty()) {
+    annotations_simple_map_["abort_message"] = abort_message;
+  }
+#endif
 }
 
 }  // namespace crashpad

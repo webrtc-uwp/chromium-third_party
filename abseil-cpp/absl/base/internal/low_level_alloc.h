@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//      https://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,10 +39,13 @@
 #define ABSL_LOW_LEVEL_ALLOC_MISSING 1
 #endif
 
-// Using LowLevelAlloc with kAsyncSignalSafe isn't supported on Windows.
+// Using LowLevelAlloc with kAsyncSignalSafe isn't supported on Windows or
+// asm.js / WebAssembly.
+// See https://kripken.github.io/emscripten-site/docs/porting/pthreads.html
+// for more information.
 #ifdef ABSL_LOW_LEVEL_ALLOC_ASYNC_SIGNAL_SAFE_MISSING
 #error ABSL_LOW_LEVEL_ALLOC_ASYNC_SIGNAL_SAFE_MISSING cannot be directly set
-#elif defined(_WIN32)
+#elif defined(_WIN32) || defined(__asmjs__) || defined(__wasm__)
 #define ABSL_LOW_LEVEL_ALLOC_ASYNC_SIGNAL_SAFE_MISSING 1
 #endif
 
@@ -116,4 +119,5 @@ class LowLevelAlloc {
 
 }  // namespace base_internal
 }  // namespace absl
+
 #endif  // ABSL_BASE_INTERNAL_LOW_LEVEL_ALLOC_H_
