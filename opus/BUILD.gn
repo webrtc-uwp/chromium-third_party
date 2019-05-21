@@ -391,9 +391,10 @@ static_library("opus") {
 
     if ((current_cpu == "arm" || current_cpu == "arm64") && target_os == "winuwp") {
       cflags += [
-      "/wd4146",  # Disable unary minus operator applied to unsigned type, result still unsigned
-    ]
+                   "/wd4146",  # Disable unary minus operator applied to unsigned type, result still unsigned
+                ]
     }
+  }
 
   if (!is_debug && (current_cpu == "arm" || current_cpu == "arm64")) {
     configs -= [ "//build/config/compiler:default_optimization" ]
