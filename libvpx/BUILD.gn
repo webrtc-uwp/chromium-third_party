@@ -272,7 +272,9 @@ if (cpu_arch_full == "arm-neon-cpu-detect") {
   static_library("libvpx_intrinsics_neon") {
     configs -= [ "//build/config/compiler:compiler_arm_fpu" ]
     configs += [ ":libvpx_config" ]
-    cflags = [ "-mfpu=neon" ]
+    if (!is_win) {
+      asmflags = [ "-mfpu=neon" ]
+    }
     sources = libvpx_srcs_arm_neon_cpu_detect_neon
   }
 }
@@ -323,7 +325,9 @@ if (current_cpu == "arm" && arm_assembly_sources != []) {
     configs += [ ":libvpx_config" ]
     if (cpu_arch_full == "arm-neon" || cpu_arch_full == "arm-neon-cpu-detect" ||
         cpu_arch_full == "arm-neon-highbd") {
-      asmflags = [ "-mfpu=neon" ]
+      if (!is_win) {
+        asmflags = [ "-mfpu=neon" ]
+      }
 
       # allow asm files to include generated sources which match the source
       # tree layout, e.g., vpx_dsp/arm/...
