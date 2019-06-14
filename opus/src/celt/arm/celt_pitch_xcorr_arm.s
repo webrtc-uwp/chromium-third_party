@@ -27,8 +27,11 @@
 ; SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
   AREA  |.text|, CODE, READONLY
-
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  GET    celt/arm/armopts.gnu.s
+#else
   GET    celt/arm/armopts.s
+#endif
 
 IF OPUS_ARM_MAY_HAVE_EDSP
   EXPORT celt_pitch_xcorr_edsp
@@ -141,6 +144,9 @@ xcorr_kernel_neon_process1
   ADDS         r12, r12, #1
   ; y[0...3] are left in d5 from prior iteration(s) (if any)
   VMLAL.S16    q0, d5, d6
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           le
+#endif
   MOVLE        pc, lr
 ; Now process 1 last sample, not reading ahead.
   ; Load last *y
@@ -295,6 +301,9 @@ xcorr_kernel_edsp_process4
   SMLATB       r7, r12, r11, r7   ; sum[1] = MAC16_16(sum[1],x_1,y_2)
   SMLATT       r8, r12, r11, r8   ; sum[2] = MAC16_16(sum[2],x_1,y_3)
   SMLATB       r9, r12, r10, r9   ; sum[3] = MAC16_16(sum[3],x_1,y_4)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRGT        r12, [r4], #4      ; Load x[0...1]
   SMLABB       r6, r14, r11, r6   ; sum[0] = MAC16_16(sum[0],x_2,y_2)
   SMLABT       r7, r14, r11, r7   ; sum[1] = MAC16_16(sum[1],x_2,y_3)
@@ -313,6 +322,9 @@ xcorr_kernel_edsp_process4_done
   SUBS         r2, r2, #1         ; j--
   ; Stall
   SMLABB       r6, r12, r10, r6   ; sum[0] = MAC16_16(sum[0],x,y_0)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRHGT       r14, [r4], #2      ; r14 = *x++
   SMLABT       r7, r12, r10, r7   ; sum[1] = MAC16_16(sum[1],x,y_1)
   SMLABB       r8, r12, r11, r8   ; sum[2] = MAC16_16(sum[2],x,y_2)
@@ -323,6 +335,9 @@ xcorr_kernel_edsp_process4_done
   SMLABB       r7, r14, r11, r7   ; sum[1] = MAC16_16(sum[1],x,y_2)
   LDRH         r10, [r5], #2      ; r10 = y_4 = *y++
   SMLABT       r8, r14, r11, r8   ; sum[2] = MAC16_16(sum[2],x,y_3)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRHGT       r12, [r4], #2      ; r12 = *x++
   SMLABB       r9, r14, r10, r9   ; sum[3] = MAC16_16(sum[3],x,y_4)
   BLE xcorr_kernel_edsp_done
@@ -331,6 +346,9 @@ xcorr_kernel_edsp_process4_done
   SMLABT       r7, r12, r11, r7   ; sum[1] = MAC16_16(sum[1],tmp,y_3)
   LDRH         r2, [r5], #2       ; r2 = y_5 = *y++
   SMLABB       r8, r12, r10, r8   ; sum[2] = MAC16_16(sum[2],tmp,y_4)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRHGT       r14, [r4]          ; r14 = *x
   SMLABB       r9, r12, r2, r9    ; sum[3] = MAC16_16(sum[3],tmp,y_5)
   BLE xcorr_kernel_edsp_done
@@ -387,16 +405,28 @@ celt_pitch_xcorr_edsp_process1u_loop4
   SMLABT       r14, r7, r9, r14     ; sum = MAC16_16(sum, x_2, y_2)
   SUBS         r12, r12, #4         ; j-=4
   SMLATB       r14, r7, r8, r14     ; sum = MAC16_16(sum, x_3, y_3)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRGT        r6, [r4], #4
   BGT celt_pitch_xcorr_edsp_process1u_loop4
   MOV          r8, r8, LSR #16
 celt_pitch_xcorr_edsp_process1u_loop4_done
   ADDS         r12, r12, #4
 celt_pitch_xcorr_edsp_process1u_loop1
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           ge
+#endif
   LDRHGE       r6, [r4], #2
   ; Stall
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  itt           ge
+#endif
   SMLABBGE     r14, r6, r8, r14    ; sum = MAC16_16(sum, *x, *y)
   SUBSGE       r12, r12, #1
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRHGT       r8, [r5], #2
   BGT celt_pitch_xcorr_edsp_process1u_loop1
   ; Restore _x
@@ -406,6 +436,9 @@ celt_pitch_xcorr_edsp_process1u_loop1
   ; maxcorr = max(maxcorr, sum)
   CMP          r0, r14
   ADD          r5, r5, #2
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r14
   SUBS         r1, r1, #1
   ; xcorr[i] = sum
@@ -427,12 +460,24 @@ celt_pitch_xcorr_edsp_process4
   CMP          r0, r6
   ; _y+=4
   ADD          r5, r5, #8
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r6
   CMP          r0, r7
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r7
   CMP          r0, r8
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r8
   CMP          r0, r9
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r9
   STMIA        r2!, {r6-r9}
   SUBS         r1, r1, #4
@@ -456,10 +501,16 @@ celt_pitch_xcorr_edsp_process2_loop4
   SMLATT       r10, r6, r8, r10     ; sum0 = MAC16_16(sum0, x_1, y_1)
   LDR          r8, [r5], #4
   SMLATB       r11, r6, r9, r11     ; sum1 = MAC16_16(sum1, x_1, y_2)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRGT        r6, [r4], #4
   SMLABB       r10, r7, r9, r10     ; sum0 = MAC16_16(sum0, x_2, y_2)
   SMLABT       r11, r7, r9, r11     ; sum1 = MAC16_16(sum1, x_2, y_3)
   SMLATT       r10, r7, r9, r10     ; sum0 = MAC16_16(sum0, x_3, y_3)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRGT        r9, [r5], #4
   SMLATB       r11, r7, r8, r11     ; sum1 = MAC16_16(sum1, x_3, y_4)
   BGT celt_pitch_xcorr_edsp_process2_loop4
@@ -480,6 +531,9 @@ celt_pitch_xcorr_edsp_process2_1
   ADDS         r12, r12, #1
   ; Stall
   SMLABB       r10, r6, r8, r10     ; sum0 = MAC16_16(sum0, x_0, y_0)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           gt
+#endif
   LDRHGT       r7, [r4], #2
   SMLABT       r11, r6, r8, r11     ; sum1 = MAC16_16(sum1, x_0, y_1)
   BLE celt_pitch_xcorr_edsp_process2_done
@@ -494,12 +548,18 @@ celt_pitch_xcorr_edsp_process2_done
   ; maxcorr = max(maxcorr, sum0)
   CMP          r0, r10
   ADD          r5, r5, #2
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r10
   SUB          r1, r1, #2
   ; maxcorr = max(maxcorr, sum1)
   CMP          r0, r11
   ; xcorr[i] = sum
   STR          r10, [r2], #4
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r11
   STR          r11, [r2], #4
 celt_pitch_xcorr_edsp_process1a
@@ -517,30 +577,54 @@ celt_pitch_xcorr_edsp_process1a_loop4
   SMLABB       r14, r6, r8, r14     ; sum = MAC16_16(sum, x_0, y_0)
   SUBS         r12, r12, #4         ; j-=4
   SMLATT       r14, r6, r8, r14     ; sum = MAC16_16(sum, x_1, y_1)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           ge
+#endif
   LDRGE        r6, [r4], #4
   SMLABB       r14, r7, r9, r14     ; sum = MAC16_16(sum, x_2, y_2)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           ge
+#endif
   LDRGE        r8, [r5], #4
   SMLATT       r14, r7, r9, r14     ; sum = MAC16_16(sum, x_3, y_3)
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  itt           ge
+#endif
   LDRGE        r7, [r4], #4
   LDRGE        r9, [r5], #4
   BGE celt_pitch_xcorr_edsp_process1a_loop4
 celt_pitch_xcorr_edsp_process1a_loop_done
   ADDS         r12, r12, #2
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  itt           ge
+#endif
   LDRGE        r6, [r4], #4
   LDRGE        r8, [r5], #4
   ; Stall
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  ittt           ge
+#endif
   SMLABBGE     r14, r6, r8, r14     ; sum = MAC16_16(sum, x_0, y_0)
   SUBGE        r12, r12, #2
   SMLATTGE     r14, r6, r8, r14     ; sum = MAC16_16(sum, x_1, y_1)
   ADDS         r12, r12, #1
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  itt           ge
+#endif
   LDRHGE       r6, [r4], #2
   LDRHGE       r8, [r5], #2
   ; Stall
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           ge
+#endif
   SMLABBGE     r14, r6, r8, r14     ; sum = MAC16_16(sum, *x, *y)
   ; maxcorr = max(maxcorr, sum)
   CMP          r0, r14
   ; xcorr[i] = sum
   STR          r14, [r2], #4
+#if (defined(__clang__) && defined(_MSC_VER) && defined(_M_ARM))
+  it           lt
+#endif
   MOVLT        r0, r14
 celt_pitch_xcorr_edsp_done
   LDMFD        sp!, {r4-r11, pc}

@@ -4,6 +4,7 @@
 
 import("//build/config/arm.gni")
 import("//testing/test.gni")
+import("//webrtc/build/Win_ARM_Tools/arm_convertor_tools.gni")
 
 # If fixed point implementation shall be used (otherwise float).
 use_opus_fixed_point = current_cpu == "arm" || current_cpu == "arm64"
@@ -30,7 +31,7 @@ config("opus_config") {
     defines = [ "OPUS_FIXED_POINT" ]
   }
   
-  if (current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
+  if (!is_clang && current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
     defines += [ "USE_MSVS_ARM_INTRINCICS" ]
   }
 }
@@ -52,6 +53,12 @@ config("opus_private_config") {
     "src/silk",
   ]
 
+  if (is_clang && current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
+    # allow asm files to include generated sources which match the source
+    # tree layout, e.g., vpx_dsp/arm/...
+    include_dirs += [ get_label_info("//third_party/opus/src/celt/arm", "target_gen_dir") ]
+  }
+  
   cflags = []
 
   if (is_win) {
@@ -154,7 +161,7 @@ config("opus_test_config") {
 
 if (use_opus_arm_rtcd) {
   
-  if ((current_cpu == "arm") && current_os == "winuwp" && target_os == "winuwp") {
+  if (!is_clang && current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
     action("convert_rtcd_assembler_for_winuwp") {
       script = "//third_party/libvpx/run_perl.py"
       outputs = [
@@ -171,19 +178,27 @@ if (use_opus_arm_rtcd) {
         rebase_path("$target_gen_dir/celt_pitch_xcorr_arm.asm", root_build_dir),
       ]
     }
-  }
-  
-  action("convert_rtcd_assembler") {
-    script = "convert_rtcd_assembler.py"
-    outputs = [
-      "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S",
-    ]
-    args = [
-      rebase_path("//third_party/opus/src/celt/arm/arm2gnu.pl", root_build_dir),
-      rebase_path("//third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s",
-                  root_build_dir),
-      rebase_path("$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", root_build_dir),
-    ]
+  } else if (is_clang && current_cpu == "arm" && current_os == "winuwp" && target_os == "winuwp") {
+    convert_arm_to_gnu("opus_assembly_arm_converted") {
+      sources = [
+                  #"//third_party/opus/src/celt/arm/armopts.s",
+                  "//third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s"
+                ]
+      outputs = [ "$target_gen_dir/{{source_file_part}}.asm" ]
+    }
+  } else {
+    action("convert_rtcd_assembler") {
+      script = "convert_rtcd_assembler.py"
+      outputs = [
+        "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S",
+      ]
+      args = [
+        rebase_path("//third_party/opus/src/celt/arm/arm2gnu.pl", root_build_dir),
+        rebase_path("//third_party/opus/src/celt/arm/celt_pitch_xcorr_arm.s",
+                    root_build_dir),
+        rebase_path("$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", root_build_dir),
+      ]
+    }
   }
 }
 
@@ -487,7 +502,7 @@ static_library("opus") {
       "src/silk/float/wrappers_FLP.c",
     ]
   }
-
+ 
   if (use_opus_arm_optimization) {
     sources += [
       "src/celt/arm/fixed_arm64.h",
@@ -506,7 +521,11 @@ static_library("opus") {
     if (use_opus_arm_rtcd) {
     
       if (current_os == "winuwp" && target_os == "winuwp") {
-        sources += get_target_outputs(":convert_rtcd_assembler_for_winuwp")
+        if (is_clang) {
+          sources += get_target_outputs(":opus_assembly_arm_converted")
+        } else {
+          sources += get_target_outputs(":convert_rtcd_assembler_for_winuwp")
+        }
       } else {
         sources += [ "$target_gen_dir/celt_pitch_xcorr_arm_gnu.S", ]
       }
@@ -522,9 +541,16 @@ static_library("opus") {
       ]
 
       if (current_os == "winuwp" && target_os == "winuwp")  {
-        deps += [
-          ":convert_rtcd_assembler_for_winuwp",
-        ]
+        if (is_clang) {
+          deps += [
+            ":opus_assembly_arm_converted",
+          ]
+        } else {
+          deps += [
+            ":convert_rtcd_assembler_for_winuwp",
+          ]
+        }
+        
       } else {
         deps += [
           ":convert_rtcd_assembler",
